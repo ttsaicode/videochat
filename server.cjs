@@ -1269,6 +1269,25 @@ const server = http.createServer(async (req, res) => {
     return sendJson(404, { error: "Admin endpoint not found" });
   }
 
+  // ==================================================
+  // HEALTH CHECK ENDPOINT (for Railway/load balancers)
+  // ==================================================
+
+  if (requestPath === "/health" && req.method === "GET") {
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store"
+    });
+    res.end(JSON.stringify({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version
+    }));
+    return;
+  }
+
   // --------------------------------------------------
   // PUBLIC ADS & ENGAGEMENT API (FOR USER index.html)
   // --------------------------------------------------
