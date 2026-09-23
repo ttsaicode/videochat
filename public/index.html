@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>ሌላ — WebRTC Live Video Connect</title>
+  <title>LELA WebRTC & Admin Control Center</title>
+  <meta name="description" content="Real-time video chat with a secure JWT-authenticated admin control panel, role-based access control, dynamic ad management, and system performance analytics." />
+  <meta property="og:title" content="LELA WebRTC & Admin Control Center" />
+  <meta property="og:description" content="Real-time video chat with a secure JWT-authenticated admin control panel, role-based access control, dynamic ad management, and system performance analytics." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -56,10 +59,15 @@
       justify-content: center;
       gap: 10px;
       padding: 8px 16px;
-      background: linear-gradient(90deg, #7c4dff, #ec4899);
-      color: #fff;
+      background: linear-gradient(90deg, #1d4ed8, #0284c7);
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       font-size: 13px;
       font-weight: 600;
+      letter-spacing: -0.01em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
       z-index: 100;
       animation: slideDown 0.3s ease;
     }
@@ -456,6 +464,481 @@
     .stranger-ad-slot { position:absolute; inset:0; pointer-events:none; z-index:10; }
     .stranger-ad-slot > .sponsored-banner-container { pointer-events:auto; }
 
+    /* PICTURE-IN-PICTURE (PiP) AD VIDEO STYLING */
+    .pip-video-wrapper {
+      position: relative;
+      display: block;
+      width: 100%;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), 0 0 14px rgba(124, 77, 255, 0.3);
+      border: 1px solid rgba(124, 77, 255, 0.45);
+      line-height: 0;
+    }
+    .pip-video-media {
+      width: 100%;
+      height: 100%;
+      max-height: 160px;
+      object-fit: cover;
+      display: block;
+      border-radius: 8px;
+    }
+    .pip-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      background: rgba(10, 14, 28, 0.88);
+      border: 1px solid rgba(0, 229, 255, 0.6);
+      color: #67e8f9;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      z-index: 5;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+    .pip-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00e5ff;
+      box-shadow: 0 0 8px #00e5ff;
+      animation: pulseDot 1.4s infinite ease-in-out;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.75); }
+    }
+    .pip-overlay-controls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 6px 8px;
+      background: linear-gradient(0deg, rgba(5, 7, 18, 0.9) 0%, transparent 100%);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      z-index: 5;
+    }
+    .pip-ctrl-btn {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 5px;
+      padding: 3px 7px;
+      cursor: pointer;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      backdrop-filter: blur(6px);
+      transition: all 0.15s ease;
+    }
+    .pip-ctrl-btn:hover {
+      background: rgba(124, 77, 255, 0.6);
+      border-color: #7c4dff;
+      transform: translateY(-1px);
+    }
+    .pip-progress-track {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255, 255, 255, 0.18);
+      z-index: 6;
+    }
+    .pip-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #7c4dff, #00e5ff);
+    }
+
+    .sponsored-card.pip-mode {
+      border-color: rgba(0, 229, 255, 0.45);
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.75), 0 0 22px rgba(0, 229, 255, 0.18);
+    }
+    .sponsored-card.pip-mode .sponsored-badge {
+      background: rgba(0, 229, 255, 0.15);
+      border-color: rgba(0, 229, 255, 0.45);
+      color: #67e8f9;
+    }
+
+    /* WEBSITE UPDATE BANNER & NORMAL ANNOUNCEMENT (CLEAN, SOPHISTICATED, BLUE & AMBER THEMES) */
+    .lockout-sticky-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 42px;
+      z-index: 99998;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      background: rgba(12, 16, 26, 0.96);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      padding: 0 16px;
+      color: #f1f5f9;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      pointer-events: auto !important;
+      transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    /* NORMAL ANNOUNCEMENT: COLOR BLUE */
+    .lockout-sticky-bar.normal-announcement {
+      background: linear-gradient(90deg, rgba(8, 24, 48, 0.97) 0%, rgba(13, 38, 76, 0.97) 50%, rgba(8, 24, 48, 0.97) 100%);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.35);
+      box-shadow: 0 2px 16px rgba(2, 132, 199, 0.25);
+    }
+    .lockout-sticky-bar.normal-announcement .lockout-badge-group {
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+    }
+    .lockout-sticky-bar.normal-announcement .lockout-status-dot {
+      background: #38bdf8;
+      box-shadow: 0 0 8px #38bdf8, 0 0 2px #0284c7;
+    }
+    .lockout-sticky-bar.normal-announcement .lockout-bar-title {
+      color: #f0f9ff;
+    }
+    .lockout-sticky-bar.normal-announcement .lockout-details-btn {
+      border-color: rgba(56, 189, 248, 0.35);
+      color: #7dd3fc;
+      background: rgba(56, 189, 248, 0.08);
+    }
+    .lockout-sticky-bar.normal-announcement .lockout-details-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+    }
+
+    /* LOCKED ANNOUNCEMENT: AMBER THEME */
+    .lockout-sticky-bar.locked-announcement {
+      background: rgba(14, 18, 28, 0.97);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.25);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+    }
+    .lockout-sticky-bar.locked-announcement .lockout-badge-group {
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+    .lockout-sticky-bar.locked-announcement .lockout-status-dot {
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.75);
+    }
+
+    .lockout-sticky-inner {
+      max-width: 1360px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .lockout-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .lockout-badge-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-weight: 700;
+      font-size: 10.5px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 3px 9px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e2e8f0;
+      white-space: nowrap;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .lockout-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #f59e0b;
+      flex-shrink: 0;
+      transition: background 0.3s ease, box-shadow 0.3s ease;
+    }
+    .lockout-title-wrapper {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .lockout-bar-title {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 13.5px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      line-height: 1.4;
+    }
+    .lockout-details-btn {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      padding: 4px 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+      flex-shrink: 0;
+      pointer-events: auto !important;
+    }
+    .lockout-details-btn:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    body.has-announcement-bar .app {
+      padding-top: 42px;
+    }
+    body.maintenance-locked .app {
+      padding-top: 42px;
+      pointer-events: none !important;
+      user-select: none !important;
+    }
+    body.maintenance-locked .app button,
+    body.maintenance-locked .app input {
+      cursor: not-allowed !important;
+    }
+
+    /* ---------------- MAINTENANCE MODAL & ENTRANCE ANIMATION ---------------- */
+    #maintenanceModalBackdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      background: rgba(5, 8, 16, 0.65);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      pointer-events: auto !important;
+    }
+
+    /* CSS scale-up entrance animation with 0.3s duration */
+    @keyframes modalScaleUpEntrance {
+      0% {
+        opacity: 0;
+        transform: scale(0.92);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes backdropFadeIn {
+      0% {
+        opacity: 0;
+      }
+      100% {
+        opacity: 1;
+      }
+    }
+
+    #maintenanceModalBackdrop.show,
+    #maintenanceModalBackdrop[style*="display: flex"] {
+      display: flex !important;
+      animation: backdropFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    #maintenanceModalBackdrop.show .report-modal,
+    #maintenanceModalBackdrop[style*="display: flex"] .report-modal {
+      animation: modalScaleUpEntrance 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* ELEGANT MODAL TYPOGRAPHY & CARD DESIGN */
+    #maintenanceModalBackdrop .report-modal {
+      position: relative;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.68), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+      padding: 34px 28px 26px;
+      background: #101422;
+      border-radius: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    #maintenanceModalTitle {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #ffffff;
+      font-size: 21px;
+      font-weight: 650;
+      letter-spacing: -0.022em;
+      line-height: 1.32;
+      margin: 0 0 10px 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    #maintenanceModalText {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #94a3b8;
+      font-size: 14.5px;
+      font-weight: 400;
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      margin: 0 auto 24px auto;
+      max-width: 350px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+
+    .maintenance-modal-icon-badge {
+      width: 50px;
+      height: 50px;
+      border-radius: 13px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px auto;
+      font-size: 22px;
+      box-shadow: 0 0 18px rgba(245, 158, 11, 0.15);
+      transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .maintenance-modal-icon-badge.blue {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.3);
+      box-shadow: 0 0 18px rgba(56, 189, 248, 0.18);
+    }
+
+    #dismissMaintenanceModalBtn {
+      width: 100%;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-weight: 600;
+      font-size: 13.5px;
+      letter-spacing: -0.01em;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: auto !important;
+      outline: none;
+    }
+
+    #dismissMaintenanceModalBtn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    #dismissMaintenanceModalBtn:active {
+      transform: translateY(0);
+    }
+
+    /* ---------------- CLOSE BUTTON WITH 90 DEG ROTATION & PULSE / SHADOW ---------------- */
+    #closeMaintenanceModalBtn,
+    .maintenance-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      pointer-events: auto !important;
+      z-index: 10;
+    }
+
+    #closeMaintenanceModalBtn svg,
+    .maintenance-close-btn svg {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.2s ease;
+      transform-origin: center;
+    }
+
+    /* Hover effect: rotates icon 90 degrees and subtle shadow/pulse effect */
+    @keyframes closeBtnPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4), 0 2px 8px rgba(0, 0, 0, 0.35);
+      }
+      70% {
+        box-shadow: 0 0 0 7px rgba(255, 255, 255, 0), 0 4px 14px rgba(0, 0, 0, 0.45);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0), 0 2px 8px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    #closeMaintenanceModalBtn:hover,
+    .maintenance-close-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.3);
+      animation: closeBtnPulse 1.3s infinite ease-out;
+      transform: scale(1.05);
+    }
+
+    #closeMaintenanceModalBtn:hover svg,
+    .maintenance-close-btn:hover svg {
+      transform: rotate(90deg);
+      stroke: #ffffff;
+    }
+
+    #closeMaintenanceModalBtn:active,
+    .maintenance-close-btn:active {
+      transform: scale(0.95) rotate(90deg);
+    }
+
     /* Video layout swap transition */
     .video-grid.swapped #remoteVideoCard {
       order: 2;
@@ -790,6 +1273,22 @@
 </head>
 
 <body>
+  <!-- WEBSITE UPDATE ANNOUNCEMENT BAR (CLEAN, MINIMAL, SOPHISTICATED) -->
+  <div id="lockoutStickyBar" class="lockout-sticky-bar" style="display: none;" role="alert">
+    <div class="lockout-sticky-inner">
+      <div class="lockout-bar-left">
+        <div class="lockout-badge-group">
+          <span class="lockout-status-dot"></span>
+          <span id="lockoutBarBadgeText">Update</span>
+        </div>
+        <div class="lockout-title-wrapper">
+          <span id="lockoutBarTitle" class="lockout-bar-title">Website is in Update</span>
+        </div>
+      </div>
+      <button id="reopenMaintenanceModalBtn" type="button" class="lockout-details-btn">View details</button>
+    </div>
+  </div>
+
   <div class="app">
 
     <!-- ADMIN BROADCAST BANNER -->
@@ -1001,18 +1500,26 @@
     </div>
   </div>
 
-  <!-- WEBSITE UPDATE / MAINTENANCE LOCKOUT MODAL (ADMIN CONTROLLED) -->
-  <div id="maintenanceModalBackdrop" class="modal-backdrop" style="z-index: 99999; backdrop-filter: blur(20px); background: rgba(5, 7, 18, 0.94);">
-    <div class="report-modal" style="text-align: center; border-color: rgba(239, 68, 68, 0.55); max-width: 480px; box-shadow: 0 16px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(239, 68, 68, 0.2); padding: 32px 26px;">
-      <div style="font-size: 50px; margin-bottom: 14px;">🛠️</div>
-      <h2 id="maintenanceModalTitle" style="color: #f87171; font-size: 22px; font-weight: 800; margin-bottom: 10px;">Platform Update in Progress</h2>
-      <p id="maintenanceModalText" style="color: #cbd5e1; font-size: 14px; line-height: 1.6; margin-bottom: 20px;">
-        An official website update is currently underway. Video matching, calling, and chat interactions are temporarily suspended by the administrator until this maintenance window concludes.
+  <!-- WEBSITE UPDATE MODAL (ELEGANT WITH CLOSE BUTTON & TRANSLUCENT OVERLAY) -->
+  <div id="maintenanceModalBackdrop" class="modal-backdrop">
+    <div class="report-modal">
+      <!-- X CLOSE BUTTON -->
+      <button id="closeMaintenanceModalBtn" type="button" class="maintenance-close-btn" aria-label="Close update notice" title="Dismiss notice">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+
+      <div id="maintenanceModalIcon" class="maintenance-modal-icon-badge">🛠️</div>
+      <h2 id="maintenanceModalTitle">Website is in Update</h2>
+      <p id="maintenanceModalText">
+        We are currently updating the platform to bring you a better experience. We will be right back!
       </p>
-      <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 14px; font-size: 12.5px; color: #fca5a5; display: flex; align-items: center; justify-content: center; gap: 8px;">
-        <span>🔒</span>
-        <span>Site interaction is locked. This screen will unlock automatically once maintenance is deleted by admin.</span>
-      </div>
+
+      <button id="dismissMaintenanceModalBtn" type="button">
+        View Website
+      </button>
     </div>
   </div>
 
