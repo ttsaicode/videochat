@@ -549,8 +549,8 @@
       line-height: 1.5;
     }
     .normal-banner {
-      background: rgba(2, 132, 199, 0.12);
-      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
       border-radius: 12px;
       padding: 16px 20px;
       margin-bottom: 24px;
@@ -631,7 +631,6 @@
       flex-wrap: wrap;
     }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 </head>
 <body>
 
@@ -865,6 +864,12 @@
     </a>
 
     <div class="header-actions">
+      <div class="status-pill" id="redisStatus">
+        <span class="dot amber"></span> Redis: Checking...
+      </div>
+      <div class="status-pill" id="supabaseStatus">
+        <span class="dot amber"></span> DB: Checking...
+      </div>
       <div class="status-pill" id="userBadgeLabel">
         👤 <span id="currentAdminName">admin</span>
       </div>
@@ -1088,59 +1093,7 @@
 
 
 
-      <!-- D3 30-DAY AD IMPRESSION GROWTH TRENDS -->
-      <div style="background: rgba(13, 17, 34, 0.7); border: 1px solid var(--card-border); border-radius: 14px; padding: 22px; margin-top: 16px; margin-bottom: 24px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
-          <div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 18px;">📈</span>
-              <h4 style="font-size: 16px; font-weight: 700; color: #fff; margin: 0;">Ad Impression Growth Trends (Last 30 Days)</h4>
-            </div>
-            <p style="font-size: 12.5px; color: var(--text-muted); margin: 4px 0 0 26px;">
-              Interactive D3 line chart tracking cumulative impression growth and daily volume across active campaigns.
-            </p>
-          </div>
-          <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #c4b5fd;">
-              <span style="display: inline-block; width: 14px; height: 3px; background: #7c4dff; border-radius: 2px;"></span>
-              <span>Cumulative Growth</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #67e8f9;">
-              <span style="display: inline-block; width: 10px; height: 10px; background: rgba(0, 229, 255, 0.4); border: 1px solid #00e5ff; border-radius: 2px;"></span>
-              <span>Daily Volume</span>
-            </div>
-            <span class="status-pill" id="trendSummaryBadge" style="font-size: 11.5px; background: rgba(124, 77, 255, 0.12); border-color: rgba(124, 77, 255, 0.35); color: #e9d5ff;">
-              Loading 30-day telemetry...
-            </span>
-          </div>
-        </div>
-
-        <div id="d3TrendsChartContainer" style="width: 100%; min-height: 290px; position: relative;">
-          <div id="d3TrendsLoading" style="display: flex; align-items: center; justify-content: center; height: 260px; color: var(--text-muted); font-size: 13px;">
-            Loading D3 analytics visualization...
-          </div>
-        </div>
-
-        <!-- Metric Highlights Row -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.06);">
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px 14px;">
-            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">30-Day Cumulative</span>
-            <div id="statTrendTotalImp" style="font-size: 18px; font-weight: 800; color: #c4b5fd; margin-top: 2px;">—</div>
-          </div>
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px 14px;">
-            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Daily Avg Velocity</span>
-            <div id="statTrendAvgDaily" style="font-size: 18px; font-weight: 800; color: #67e8f9; margin-top: 2px;">—</div>
-          </div>
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px 14px;">
-            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Peak Daily Impressions</span>
-            <div id="statTrendPeakDay" style="font-size: 18px; font-weight: 800; color: #a7f3d0; margin-top: 2px;">—</div>
-          </div>
-          <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 10px 14px;">
-            <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Overall 30d CTR</span>
-            <div id="statTrendCtr" style="font-size: 18px; font-weight: 800; color: #fde047; margin-top: 2px;">—</div>
-          </div>
-        </div>
-      </div>
+      <h4 style="font-size:15px; margin: 20px 0 10px; color:#cbd5e1">Top Performing Ad Campaigns</h4>
       <div class="table-responsive">
         <table>
           <thead>
@@ -1277,21 +1230,21 @@
         
         <div class="form-group" style="margin-bottom: 12px;">
           <label for="broadcastTitle">Update / Announcement Title</label>
-          <input type="text" id="broadcastTitle" class="input-field" placeholder="e.g. Website is in Update" value="Website is in Update" maxlength="100" style="width: 100%;" />
+          <input type="text" id="broadcastTitle" class="input-field" placeholder="e.g. Website Update & System Upgrade in Progress" maxlength="100" style="width: 100%;" />
         </div>
 
         <div class="form-group" style="margin-bottom: 14px;">
           <label for="broadcastInput">Announcement Message for Users</label>
-          <textarea id="broadcastInput" class="input-field" rows="3" placeholder="Explain the update to users (e.g. We are deploying improvements to the website. We will be right back!)..." maxlength="400" required style="width: 100%; resize: vertical;"></textarea>
+          <textarea id="broadcastInput" class="input-field" rows="3" placeholder="Explain the changes to users. If maintenance lockout is enabled, users will see this notice and be prevented from interacting until you delete this announcement..." maxlength="400" required style="width: 100%; resize: vertical;"></textarea>
         </div>
 
         <div style="margin-bottom: 18px;">
-          <label class="checkbox-row" style="background: rgba(124, 77, 255, 0.1); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(124, 77, 255, 0.3); width: 100%; display: flex; align-items: flex-start; gap: 12px; height: auto;">
+          <label class="checkbox-row" style="background: rgba(239, 68, 68, 0.12); padding: 14px 18px; border-radius: 10px; border: 1px solid rgba(239, 68, 68, 0.35); width: 100%; display: flex; align-items: flex-start; gap: 12px; height: auto;">
             <input type="checkbox" id="broadcastLockout" checked style="margin-top: 3px;" />
             <div>
-              <strong style="color: #c4b5fd; font-size: 14px;">🛠️ Website Update Mode (Pause User Interactions)</strong><br>
+              <strong style="color: #f87171; font-size: 14px;">🔒 Lock Website Interactions (Maintenance Mode)</strong><br>
               <span style="color: #94a3b8; font-size: 12.5px; font-weight: normal; line-height: 1.4; display: block; margin-top: 3px;">
-                Displays the update notice over the site layout, keeping the page visible while pausing camera, matching, and chat until you delete this announcement.
+                Users will be immediately locked out with an unclosable maintenance overlay and cannot start video, matching, or chat until you delete this specific announcement.
               </span>
             </div>
           </label>
@@ -1649,17 +1602,13 @@
           }
         }
 
-        if ($("redisStatus")) {
-          $("redisStatus").innerHTML = data.redisConnected
-            ? `<span class="dot green"></span> Redis: Connected`
-            : `<span class="dot amber"></span> Redis: Fast Memory`;
-        }
+        $("redisStatus").innerHTML = data.redisConnected
+          ? `<span class="dot green"></span> Redis: Connected`
+          : `<span class="dot amber"></span> Redis: Fast Memory`;
 
-        if ($("supabaseStatus")) {
-          $("supabaseStatus").innerHTML = data.supabaseConnected
-            ? `<span class="dot green"></span> DB: Supabase`
-            : `<span class="dot amber"></span> DB: Relational Store`;
-        }
+        $("supabaseStatus").innerHTML = data.supabaseConnected
+          ? `<span class="dot green"></span> DB: Supabase`
+          : `<span class="dot amber"></span> DB: Relational Store`;
 
         if (currentTab === "adsPanel") fetchAds();
         else if (currentTab === "analyticsPanel") fetchPerformanceMetrics();
@@ -2215,11 +2164,6 @@
 
         const eng = await engRes.json();
 
-        // Render D3 Line Chart for 30-Day Impression Trends
-        if (eng.trends30Days && Array.isArray(eng.trends30Days)) {
-          renderD3ImpressionChart(eng.trends30Days, eng);
-        }
-
         // Top Ads Table
         const topAds = eng.topPerformingAds || [];
         const topBody = $("topAdsTableBody");
@@ -2239,291 +2183,6 @@
         console.error("Error fetching performance metrics:", err);
       }
     }
-
-    let cachedTrendData = null;
-    let cachedTrendMeta = null;
-
-    function renderD3ImpressionChart(data, meta) {
-      if (!data || !data.length) return;
-      if (meta) cachedTrendMeta = meta;
-      cachedTrendData = data;
-
-      if (typeof d3 === "undefined") {
-        console.warn("D3 library not loaded yet");
-        return;
-      }
-
-      const container = document.getElementById("d3TrendsChartContainer");
-      if (!container) return;
-
-      container.innerHTML = "";
-
-      // Update metric cards
-      const lastPoint = data[data.length - 1];
-      const totalImp = lastPoint ? (lastPoint.cumulativeImpressions || 0) : 0;
-      const firstImp = data[0] ? (data[0].cumulativeImpressions || 1) : 1;
-      const avgDaily = Math.round(totalImp / data.length);
-      const peakDay = Math.max(...data.map(d => d.dailyImpressions || 0));
-      const overallCtr = (cachedTrendMeta && cachedTrendMeta.overallCtr) ? cachedTrendMeta.overallCtr : "5.2%";
-
-      if ($("statTrendTotalImp")) $("statTrendTotalImp").textContent = totalImp.toLocaleString();
-      if ($("statTrendAvgDaily")) $("statTrendAvgDaily").textContent = avgDaily.toLocaleString() + " / day";
-      if ($("statTrendPeakDay")) $("statTrendPeakDay").textContent = peakDay.toLocaleString() + " impr.";
-      if ($("statTrendCtr")) $("statTrendCtr").textContent = overallCtr;
-      if ($("trendSummaryBadge")) {
-        const growthPct = Math.round(((totalImp - firstImp) / Math.max(1, firstImp)) * 100);
-        $("trendSummaryBadge").textContent = `📈 +${growthPct}% 30-Day Growth`;
-      }
-
-      const margin = { top: 25, right: 35, bottom: 40, left: 55 };
-      const containerWidth = container.clientWidth || 800;
-      const width = Math.max(320, containerWidth) - margin.left - margin.right;
-      const height = 290 - margin.top - margin.bottom;
-
-      const parseDate = d3.timeParse("%Y-%m-%d");
-      const formattedData = data.map(d => ({
-        ...d,
-        parsedDate: parseDate(d.date) || new Date(d.date)
-      }));
-
-      const svg = d3.select(container)
-        .append("svg")
-        .attr("width", "100%")
-        .attr("height", height + margin.top + margin.bottom)
-        .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
-        .attr("style", "overflow: visible;")
-        .append("g")
-        .attr("transform", `translate(${margin.left},${margin.top})`);
-
-      // Gradient definitions
-      const defs = svg.append("defs");
-
-      // Area gradient
-      const areaGradient = defs.append("linearGradient")
-        .attr("id", "adTrendAreaGrad")
-        .attr("x1", "0%").attr("y1", "0%")
-        .attr("x2", "0%").attr("y2", "100%");
-      areaGradient.append("stop")
-        .attr("offset", "0%")
-        .attr("stop-color", "#7c4dff")
-        .attr("stop-opacity", 0.42);
-      areaGradient.append("stop")
-        .attr("offset", "100%")
-        .attr("stop-color", "#7c4dff")
-        .attr("stop-opacity", 0.0);
-
-      // Bar gradient for daily volume
-      const barGradient = defs.append("linearGradient")
-        .attr("id", "adTrendBarGrad")
-        .attr("x1", "0%").attr("y1", "0%")
-        .attr("x2", "0%").attr("y2", "100%");
-      barGradient.append("stop")
-        .attr("offset", "0%")
-        .attr("stop-color", "#00e5ff")
-        .attr("stop-opacity", 0.6);
-      barGradient.append("stop")
-        .attr("offset", "100%")
-        .attr("stop-color", "#00e5ff")
-        .attr("stop-opacity", 0.1);
-
-      // Scales
-      const x = d3.scaleTime()
-        .domain(d3.extent(formattedData, d => d.parsedDate))
-        .range([0, width]);
-
-      const maxCum = d3.max(formattedData, d => d.cumulativeImpressions) || 1000;
-      const yCum = d3.scaleLinear()
-        .domain([0, maxCum * 1.1])
-        .nice()
-        .range([height, 0]);
-
-      const maxDaily = d3.max(formattedData, d => d.dailyImpressions) || 100;
-      const yDaily = d3.scaleLinear()
-        .domain([0, maxDaily * 3.2]) // keeps daily bars in the lower baseline
-        .range([height, 0]);
-
-      // Horizontal dashed grid
-      svg.append("g")
-        .attr("class", "grid")
-        .call(d3.axisLeft(yCum)
-          .ticks(5)
-          .tickSize(-width)
-          .tickFormat("")
-        )
-        .call(g => g.select(".domain").remove())
-        .call(g => g.selectAll(".tick line")
-          .attr("stroke", "rgba(255, 255, 255, 0.07)")
-          .attr("stroke-dasharray", "3,3")
-        );
-
-      // Daily Volume Bars
-      const barWidth = Math.max(3, (width / formattedData.length) - 4);
-      svg.selectAll(".daily-bar")
-        .data(formattedData)
-        .enter()
-        .append("rect")
-        .attr("class", "daily-bar")
-        .attr("x", d => x(d.parsedDate) - barWidth / 2)
-        .attr("y", d => yDaily(d.dailyImpressions))
-        .attr("width", barWidth)
-        .attr("height", d => Math.max(0, height - yDaily(d.dailyImpressions)))
-        .attr("fill", "url(#adTrendBarGrad)")
-        .attr("rx", 2);
-
-      // Area fill under cumulative trajectory
-      const area = d3.area()
-        .x(d => x(d.parsedDate))
-        .y0(height)
-        .y1(d => yCum(d.cumulativeImpressions))
-        .curve(d3.curveMonotoneX);
-
-      svg.append("path")
-        .datum(formattedData)
-        .attr("fill", "url(#adTrendAreaGrad)")
-        .attr("d", area);
-
-      // Cumulative Line
-      const line = d3.line()
-        .x(d => x(d.parsedDate))
-        .y(d => yCum(d.cumulativeImpressions))
-        .curve(d3.curveMonotoneX);
-
-      svg.append("path")
-        .datum(formattedData)
-        .attr("fill", "none")
-        .attr("stroke", "#7c4dff")
-        .attr("stroke-width", 3)
-        .attr("d", line);
-
-      // X-Axis
-      svg.append("g")
-        .attr("transform", `translate(0,${height})`)
-        .call(d3.axisBottom(x)
-          .ticks(Math.min(7, Math.floor(width / 80)))
-          .tickFormat(d3.timeFormat("%b %d"))
-        )
-        .call(g => g.select(".domain").attr("stroke", "rgba(255, 255, 255, 0.15)"))
-        .call(g => g.selectAll(".tick line").attr("stroke", "rgba(255, 255, 255, 0.15)"))
-        .call(g => g.selectAll(".tick text")
-          .attr("fill", "#9ca3af")
-          .attr("font-size", "11px")
-          .attr("dy", "10px")
-        );
-
-      // Y-Axis
-      svg.append("g")
-        .call(d3.axisLeft(yCum)
-          .ticks(5)
-          .tickFormat(d => d >= 1000 ? (d / 1000).toFixed(1) + "k" : d)
-        )
-        .call(g => g.select(".domain").remove())
-        .call(g => g.selectAll(".tick line").remove())
-        .call(g => g.selectAll(".tick text")
-          .attr("fill", "#9ca3af")
-          .attr("font-size", "11px")
-        );
-
-      // Interactive Hover Focus
-      const tooltip = d3.select(container).append("div")
-        .attr("class", "d3-tooltip")
-        .style("position", "absolute")
-        .style("visibility", "hidden")
-        .style("background", "rgba(10, 14, 28, 0.95)")
-        .style("border", "1px solid rgba(124, 77, 255, 0.45)")
-        .style("padding", "10px 14px")
-        .style("border-radius", "10px")
-        .style("color", "#fff")
-        .style("font-size", "12px")
-        .style("box-shadow", "0 10px 30px rgba(0, 0, 0, 0.7), 0 0 16px rgba(124, 77, 255, 0.2)")
-        .style("pointer-events", "none")
-        .style("z-index", "100")
-        .style("min-width", "165px");
-
-      const focusLine = svg.append("line")
-        .attr("y1", 0)
-        .attr("y2", height)
-        .attr("stroke", "rgba(255, 255, 255, 0.35)")
-        .attr("stroke-dasharray", "4,4")
-        .style("visibility", "hidden");
-
-      const focusCircle = svg.append("circle")
-        .attr("r", 5.5)
-        .attr("fill", "#00e5ff")
-        .attr("stroke", "#fff")
-        .attr("stroke-width", 2)
-        .style("visibility", "hidden");
-
-      const bisectDate = d3.bisector(d => d.parsedDate).left;
-
-      svg.append("rect")
-        .attr("width", width)
-        .attr("height", height)
-        .attr("fill", "transparent")
-        .style("cursor", "crosshair")
-        .on("mousemove", function(event) {
-          const [mouseX] = d3.pointer(event);
-          const x0 = x.invert(mouseX);
-          const i = bisectDate(formattedData, x0, 1);
-          const d0 = formattedData[i - 1];
-          const d1 = formattedData[i];
-          let d = d0;
-          if (d0 && d1) {
-            d = (x0 - d0.parsedDate > d1.parsedDate - x0) ? d1 : d0;
-          } else if (d1) {
-            d = d1;
-          }
-          if (!d) return;
-
-          const posX = x(d.parsedDate);
-          const posY = yCum(d.cumulativeImpressions);
-
-          focusLine
-            .attr("x1", posX)
-            .attr("x2", posX)
-            .style("visibility", "visible");
-
-          focusCircle
-            .attr("cx", posX)
-            .attr("cy", posY)
-            .style("visibility", "visible");
-
-          tooltip
-            .style("visibility", "visible")
-            .html(`
-              <div style="font-weight: 700; color: #c4b5fd; margin-bottom: 6px; font-size: 13px;">📅 ${d.formattedDate}</div>
-              <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px;">
-                <span style="color: #9ca3af;">Cumulative:</span>
-                <strong style="color: #fff;">${d.cumulativeImpressions.toLocaleString()}</strong>
-              </div>
-              <div style="display: flex; justify-content: space-between; gap: 12px; margin-bottom: 3px;">
-                <span style="color: #9ca3af;">Daily Volume:</span>
-                <strong style="color: #00e5ff;">+${d.dailyImpressions.toLocaleString()}</strong>
-              </div>
-              <div style="display: flex; justify-content: space-between; gap: 12px;">
-                <span style="color: #9ca3af;">Clicks (CTR):</span>
-                <strong style="color: #fde047;">${d.dailyClicks} (${d.ctr})</strong>
-              </div>
-            `);
-
-          const tooltipX = Math.min(width - 90, Math.max(10, posX + margin.left - 80));
-          const tooltipY = Math.max(5, posY + margin.top - 95);
-          tooltip
-            .style("left", `${tooltipX}px`)
-            .style("top", `${tooltipY}px`);
-        })
-        .on("mouseleave", function() {
-          focusLine.style("visibility", "hidden");
-          focusCircle.style("visibility", "hidden");
-          tooltip.style("visibility", "hidden");
-        });
-    }
-
-    // Auto-resize D3 chart
-    window.addEventListener("resize", () => {
-      if (cachedTrendData && $("analyticsPanel") && $("analyticsPanel").classList.contains("active")) {
-        renderD3ImpressionChart(cachedTrendData, cachedTrendMeta);
-      }
-    });
 
     // ==================================================
     // REPORTS, BANS, CONNECTIONS & AUDIT LOGS
@@ -2970,19 +2629,19 @@
 
       const isLockout = !!active.lockout;
       card.innerHTML = `
-        <div style="background: rgba(124, 77, 255, 0.12); border: 1px solid rgba(124, 77, 255, 0.4); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+        <div style="background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.45); border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(239, 68, 68, 0.15);">
           <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;">
             <div>
               <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
-                <span class="dot purple" style="background: #a78bfa;"></span>
-                <h4 style="margin: 0; color: #c4b5fd; font-size: 16px; font-weight: 700;">
-                  ${isLockout ? "🛠️ ACTIVE WEBSITE UPDATE MODE" : "📢 ACTIVE SYSTEM ANNOUNCEMENT"}
+                <span class="dot red"></span>
+                <h4 style="margin: 0; color: #f87171; font-size: 16px; font-weight: 700;">
+                  ${isLockout ? "🚨 ACTIVE WEBSITE UPDATE & MAINTENANCE LOCKOUT" : "📢 ACTIVE SYSTEM ANNOUNCEMENT"}
                 </h4>
                 <span class="tag ${isLockout ? 'tag-live' : 'tag-pending'}" style="font-size: 11px;">
-                  ${isLockout ? 'UPDATE ACTIVE' : 'NOTICE ONLY'}
+                  ${isLockout ? 'LOCKOUT ENFORCED' : 'NOTICE ONLY'}
                 </span>
               </div>
-              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #f1f5f9;">${escapeHtml(active.title || 'Website is in Update')}</p>
+              <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #f1f5f9;">${escapeHtml(active.title || 'Platform Update')}</p>
               <p style="margin: 0 0 10px 0; font-size: 13px; color: #cbd5e1; line-height: 1.5; white-space: pre-wrap;">${escapeHtml(active.message)}</p>
               <div style="font-size: 11.5px; color: var(--text-muted); display: flex; gap: 14px;">
                 <span>👤 Initiated by: <strong>${escapeHtml(active.created_by || 'Admin')}</strong></span>
@@ -2991,13 +2650,13 @@
             </div>
             <div>
               <button class="btn btn-danger" onclick="deleteAnnouncement('${escapeHtml(active.id)}')" style="white-space: nowrap; padding: 10px 18px; font-weight: 600;">
-                🗑️ Delete Announcement & Resume Normal Mode
+                🗑️ Delete Announcement & Unlock Website
               </button>
             </div>
           </div>
           ${isLockout ? `
-            <div style="margin-top: 14px; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px; color: #cbd5e1;">
-              🛠️ <strong>Update Mode Active:</strong> Website layout remains visible to users with interactive matching paused until deleted.
+            <div style="margin-top: 14px; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px; color: #fca5a5;">
+              ⚠️ <strong>Lockout Enforced:</strong> All user interactions (video calling, text chat, matching) are blocked. Users are held on the maintenance screen until you click the button above.
             </div>` : ''}
         </div>`;
     }
@@ -3014,13 +2673,13 @@
       tbody.innerHTML = history.map(item => {
         const isActive = active && active.id === item.id;
         return `
-          <tr style="${isActive ? 'background: rgba(124, 77, 255, 0.08);' : ''}">
+          <tr style="${isActive ? 'background: rgba(239, 68, 68, 0.08);' : ''}">
             <td>${escapeHtml(fmtDateTime(item.created_at))}</td>
-            <td><strong>${escapeHtml(item.title || "Website is in Update")}</strong></td>
+            <td><strong>${escapeHtml(item.title || "Platform Update")}</strong></td>
             <td><small style="color: #cbd5e1;">${escapeHtml(item.message)}</small></td>
             <td>
               <span class="tag ${item.lockout ? 'tag-live' : 'tag-reviewed'}">
-                ${item.lockout ? '🛠️ Update Mode' : '📢 Notice'}
+                ${item.lockout ? '🔒 Lockout' : '📢 Notice'}
               </span>
               ${isActive ? '<br><span class="tag tag-pending" style="font-size:10px; margin-top:2px;">CURRENT</span>' : ''}
             </td>
@@ -3040,7 +2699,7 @@
 
     async function handleSendBroadcast(e) {
       e.preventDefault();
-      const title = $("broadcastTitle").value.trim() || "Website is in Update";
+      const title = $("broadcastTitle").value.trim() || "Website Update in Progress";
       const message = $("broadcastInput").value.trim();
       const lockout = $("broadcastLockout").checked;
 

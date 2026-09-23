@@ -21,10 +21,9 @@ const reportButton     = document.getElementById("reportButton");
 const statusElement      = document.getElementById("status");
 const onlineCountElement = document.getElementById("onlineCountText");
 
-const chatForm       = document.getElementById("chatForm");
-const chatInput      = document.getElementById("chatInput");
-const chatMessages   = document.getElementById("chatMessages");
-const sendChatButton = document.getElementById("sendChatButton");
+const chatForm     = document.getElementById("chatForm");
+const chatInput    = document.getElementById("chatInput");
+const chatMessages = document.getElementById("chatMessages");
 
 const reportModalBackdrop = document.getElementById("reportModalBackdrop");
 const cancelReportButton  = document.getElementById("cancelReportButton");
@@ -166,11 +165,8 @@ function applyChatState() {
   const chatPanel = document.querySelector(".chat-panel");
   if (chatPanel) chatPanel.classList.toggle("chat-off", !chatEnabled);
   if (chatInput) {
-    chatInput.disabled = !chatEnabled || isMaintenanceLocked;
-    chatInput.placeholder = isMaintenanceLocked ? "Maintenance active" : (chatEnabled ? "Type a message..." : "Chat is off");
-  }
-  if (sendChatButton) {
-    sendChatButton.disabled = !chatEnabled || isMaintenanceLocked;
+    chatInput.disabled = !chatEnabled;
+    chatInput.placeholder = chatEnabled ? "Type a message..." : "Chat is off";
   }
 }
 
@@ -323,123 +319,29 @@ function renderCurrentAd() {
     adCloseBtn.style.display = adSettings.allowDismiss ? "block" : "none";
   }
 
-  // Media preview (image or video in Picture-in-Picture style)
+  // Media preview (image or video)
   if (adMediaSlot) {
     adMediaSlot.innerHTML = "";
     if (ad.media_type === "video") {
-      if (adCard) adCard.classList.add("pip-mode");
-
-      const wrapper = document.createElement("div");
-      wrapper.className = "pip-video-wrapper";
-
-      // Picture-in-Picture badge indicator
-      const badge = document.createElement("div");
-      badge.className = "pip-badge";
-      badge.innerHTML = '<span class="pip-pulse-dot"></span><span>PiP Mode</span>';
-      wrapper.appendChild(badge);
-
-      // Floating video element
       const vid = document.createElement("video");
-      vid.className = "pip-video-media sponsored-media";
+      vid.className = "sponsored-media";
       vid.src = ad.media_url;
       vid.autoplay = true;
       vid.muted = true;
       vid.loop = false;
       vid.playsInline = true;
       vid.preload = "auto";
-
-      // Progress bar at the bottom of the PiP frame
-      const progressTrack = document.createElement("div");
-      progressTrack.className = "pip-progress-track";
-      const progressFill = document.createElement("div");
-      progressFill.className = "pip-progress-fill";
-      progressTrack.appendChild(progressFill);
-
-      vid.ontimeupdate = () => {
-        if (vid.duration) {
-          const pct = (vid.currentTime / vid.duration) * 100;
-          progressFill.style.width = pct + "%";
-        }
-      };
-
-      // PiP Overlay controls
-      const controls = document.createElement("div");
-      controls.className = "pip-overlay-controls";
-
-      // Left controls: Play/Pause and Mute toggle
-      const leftControls = document.createElement("div");
-      leftControls.style.display = "flex";
-      leftControls.style.gap = "4px";
-
-      const playBtn = document.createElement("button");
-      playBtn.type = "button";
-      playBtn.className = "pip-ctrl-btn";
-      playBtn.title = "Play / Pause";
-      playBtn.innerHTML = "⏸";
-      playBtn.onclick = (e) => {
-        e.stopPropagation();
-        if (vid.paused) {
-          vid.play().then(() => { playBtn.innerHTML = "⏸"; }).catch(() => {});
-        } else {
-          vid.pause();
-          playBtn.innerHTML = "▶";
-        }
-      };
-
-      const muteBtn = document.createElement("button");
-      muteBtn.type = "button";
-      muteBtn.className = "pip-ctrl-btn";
-      muteBtn.title = "Mute / Unmute Sound";
-      muteBtn.innerHTML = "🔇";
-      muteBtn.onclick = (e) => {
-        e.stopPropagation();
-        vid.muted = !vid.muted;
-        muteBtn.innerHTML = vid.muted ? "🔇" : "🔊";
-      };
-
-      leftControls.appendChild(playBtn);
-      leftControls.appendChild(muteBtn);
-
-      // Right control: Browser Picture-in-Picture pop-out
-      const popoutBtn = document.createElement("button");
-      popoutBtn.type = "button";
-      popoutBtn.className = "pip-ctrl-btn";
-      popoutBtn.title = "Pop-out Video (Picture-in-Picture window)";
-      popoutBtn.innerHTML = "⧉ Pop-out";
-      popoutBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-          if (document.pictureInPictureElement) {
-            await document.exitPictureInPicture();
-          } else if (vid.requestPictureInPicture) {
-            await vid.requestPictureInPicture();
-          }
-        } catch (_) {}
-      };
-
-      controls.appendChild(leftControls);
-      controls.appendChild(popoutBtn);
-
       vid.onended = () => {
         if (activeAdsList.length > 1 && !adDismissed) {
           if (adRotationTimer) clearTimeout(adRotationTimer);
           currentAdIndex = (currentAdIndex + 1) % activeAdsList.length;
           renderCurrentAd();
           scheduleNextAd();
-        } else {
-          vid.currentTime = 0;
-          vid.play().catch(() => {});
         }
       };
-
-      wrapper.appendChild(vid);
-      wrapper.appendChild(controls);
-      wrapper.appendChild(progressTrack);
-      adMediaSlot.appendChild(wrapper);
-
+      adMediaSlot.appendChild(vid);
       vid.play().catch(() => {});
     } else {
-      if (adCard) adCard.classList.remove("pip-mode");
       const img = document.createElement("img");
       img.className = "sponsored-media";
       img.src = ad.media_url;
@@ -773,8 +675,6 @@ function connectToSignalingServer() {
 }
 
 let isMaintenanceLocked = false;
-let maintenanceModalDismissed = false;
-let lastMaintenanceAnnouncementId = null;
 
 function sendMessage(message) {
   if (isMaintenanceLocked && message && message.type !== "ping") {
@@ -790,6 +690,7 @@ function sendMessage(message) {
 
 async function startCamera() {
   if (isMaintenanceLocked) {
+    alert("Website update is currently in progress. Site interaction is locked by the administrator.");
     return;
   }
   if (hasStartedCamera) return;
@@ -968,8 +869,6 @@ async function handleSignalingMessage(message) {
 }
 
 let broadcastBannerTimer = null;
-let normalAnnouncementTimer = null;
-let lastSeenNormalAnnouncementId = null;
 
 function handleBroadcast(text, persistent = false) {
   if (!broadcastBanner || !broadcastMessage) return;
@@ -993,235 +892,66 @@ function handleSystemAnnouncement(announcement) {
   }
 
   if (announcement.lockout) {
-    // Locked announcement: PERSISTENT! Do not change any functionalities of locked announcements.
-    if (normalAnnouncementTimer) {
-      clearTimeout(normalAnnouncementTimer);
-      normalAnnouncementTimer = null;
-    }
-    applyMaintenanceLockout(announcement.title, announcement.message, announcement.id);
+    applyMaintenanceLockout(announcement.title, announcement.message);
   } else {
-    // Normal announcement: visible for some seconds only!
     removeMaintenanceLockout();
-    showNormalAnnouncement(announcement);
-  }
-}
-
-function showNormalAnnouncement(announcement) {
-  if (!announcement) return;
-
-  const annId = announcement.id || (announcement.title + ":" + announcement.message);
-
-  // If this normal announcement has already been shown and its timer expired, do not re-show on polling
-  if (annId === lastSeenNormalAnnouncementId && !normalAnnouncementTimer) {
-    return;
-  }
-
-  // If this normal announcement is currently active and timing down, let it continue
-  if (annId === lastSeenNormalAnnouncementId && normalAnnouncementTimer) {
-    return;
-  }
-
-  lastSeenNormalAnnouncementId = annId;
-
-  if (normalAnnouncementTimer) {
-    clearTimeout(normalAnnouncementTimer);
-    normalAnnouncementTimer = null;
-  }
-
-  const stickyBar = document.getElementById("lockoutStickyBar");
-  const barTitle = document.getElementById("lockoutBarTitle");
-  const barBadgeText = document.getElementById("lockoutBarBadgeText");
-  const statusDot = document.querySelector(".lockout-status-dot");
-  const reopenBtn = document.getElementById("reopenMaintenanceModalBtn");
-  const modalIcon = document.getElementById("maintenanceModalIcon");
-
-  if (stickyBar) {
-    stickyBar.classList.add("normal-announcement");
-    stickyBar.classList.remove("locked-announcement");
-    stickyBar.style.display = "flex";
-  }
-
-  if (barTitle) {
-    barTitle.textContent = announcement.title || "Announcement";
-  }
-  if (barBadgeText) {
-    barBadgeText.textContent = "Announcement";
-  }
-  if (statusDot) {
-    statusDot.style.background = "#38bdf8";
-  }
-  if (modalIcon) {
-    modalIcon.textContent = "📢";
-    modalIcon.classList.add("blue");
-  }
-
-  // Set popup details in case user clicks "View details"
-  const titleEl = document.getElementById("maintenanceModalTitle");
-  const textEl = document.getElementById("maintenanceModalText");
-  if (titleEl) titleEl.textContent = announcement.title || "Announcement";
-  if (textEl) textEl.textContent = announcement.message || "";
-
-  if (reopenBtn) {
-    reopenBtn.style.display = announcement.message ? "inline-block" : "none";
-  }
-
-  document.body.classList.add("has-announcement-bar");
-
-  // The announcement bar is visible for some seconds for only normal announcement
-  normalAnnouncementTimer = setTimeout(() => {
-    hideNormalAnnouncement();
-  }, 8000);
-}
-
-function hideNormalAnnouncement() {
-  if (normalAnnouncementTimer) {
-    clearTimeout(normalAnnouncementTimer);
-    normalAnnouncementTimer = null;
-  }
-  if (!isMaintenanceLocked) {
-    const stickyBar = document.getElementById("lockoutStickyBar");
-    if (stickyBar) {
-      stickyBar.style.display = "none";
-      stickyBar.classList.remove("normal-announcement");
-    }
-    document.body.classList.remove("has-announcement-bar");
+    handleBroadcast(`${announcement.title ? announcement.title + ': ' : ''}${announcement.message}`, true);
   }
 }
 
 function handleAnnouncementCleared() {
-  if (normalAnnouncementTimer) {
-    clearTimeout(normalAnnouncementTimer);
-    normalAnnouncementTimer = null;
-  }
-  lastSeenNormalAnnouncementId = null;
   removeMaintenanceLockout();
-  hideNormalAnnouncement();
   if (broadcastBanner) {
     broadcastBanner.classList.remove("show");
   }
 }
 
 function handleMaintenanceLockout(customMsg) {
-  applyMaintenanceLockout("Website is in Update", customMsg || "We are currently making improvements to the website.");
+  applyMaintenanceLockout("Website Maintenance in Progress", customMsg || "An administrator is updating the platform. Site interaction is temporarily blocked.");
 }
 
-function applyMaintenanceLockout(title, message, announcementId) {
+function applyMaintenanceLockout(title, message) {
   isMaintenanceLocked = true;
-  document.body.classList.add("maintenance-locked");
-
-  if (announcementId && announcementId !== lastMaintenanceAnnouncementId) {
-    // New announcement published - show modal once for this new announcement
-    maintenanceModalDismissed = false;
-    lastMaintenanceAnnouncementId = announcementId;
-  }
 
   // Immediately terminate active session/camera if running
   if (hasStartedCamera || isMatched) {
     stopVideoChat();
   }
 
-  // Disable all interactive UI elements so user cannot match or send messages
+  // Disable all interactive UI elements
   if (startButton) startButton.disabled = true;
   if (stopButton) stopButton.disabled = true;
   if (nextButton) nextButton.disabled = true;
   if (recordButton) recordButton.disabled = true;
   if (chatInput) chatInput.disabled = true;
-  if (sendChatButton) sendChatButton.disabled = true;
+  if (chatSendBtn) chatSendBtn.disabled = true;
   if (reportButton) reportButton.disabled = true;
-  if (chatToggleButton) chatToggleButton.disabled = true;
 
-  // Display persistent Lockout Sticky Bar (visible at all times while site is in update)
-  const stickyBar = document.getElementById("lockoutStickyBar");
-  const barTitle = document.getElementById("lockoutBarTitle");
-  const barBadgeText = document.getElementById("lockoutBarBadgeText");
-  const statusDot = document.querySelector(".lockout-status-dot");
-  const reopenBtn = document.getElementById("reopenMaintenanceModalBtn");
-  const modalIcon = document.getElementById("maintenanceModalIcon");
-
-  if (stickyBar) {
-    stickyBar.classList.add("locked-announcement");
-    stickyBar.classList.remove("normal-announcement");
-    stickyBar.style.display = "flex";
-  }
-
-  if (barTitle) barTitle.textContent = title || "Website is in Update";
-  if (barBadgeText) barBadgeText.textContent = "Update";
-  if (statusDot) statusDot.style.background = "#f59e0b";
-  if (modalIcon) {
-    modalIcon.textContent = "🛠️";
-    modalIcon.classList.remove("blue");
-  }
-  if (reopenBtn) reopenBtn.style.display = "inline-block";
-  document.body.classList.add("has-announcement-bar");
-
-  // Display Maintenance Modal only if user has not closed/dismissed it
+  // Show the maintenance overlay
   const modal = document.getElementById("maintenanceModalBackdrop");
   const titleEl = document.getElementById("maintenanceModalTitle");
   const textEl = document.getElementById("maintenanceModalText");
 
-  if (titleEl) titleEl.textContent = title || "Website is in Update";
-  if (textEl) textEl.textContent = message || "We are currently updating the platform to bring you a better experience. We will be right back!";
+  if (titleEl) titleEl.textContent = title || "Platform Update in Progress";
+  if (textEl) textEl.textContent = message || "Website updates are currently being deployed. All user interaction is temporarily disabled until the update concludes.";
+  if (modal) modal.classList.add("show");
 
-  if (modal) {
-    if (!maintenanceModalDismissed) {
-      modal.style.display = "flex";
-      modal.classList.add("show");
-    } else {
-      modal.style.display = "none";
-      modal.classList.remove("show");
-    }
-  }
-
-  setStatus("Website is in Update");
-}
-
-function dismissMaintenanceModal(e) {
-  if (e && typeof e.stopPropagation === "function") {
-    e.stopPropagation();
-  }
-  maintenanceModalDismissed = true;
-  const modal = document.getElementById("maintenanceModalBackdrop");
-  if (modal) {
-    modal.style.display = "none";
-    modal.classList.remove("show");
-  }
-}
-
-function openMaintenanceModal() {
-  maintenanceModalDismissed = false; // Persistent until user explicitly closes it with X button
-  const modal = document.getElementById("maintenanceModalBackdrop");
-  if (modal) {
-    modal.style.display = "flex";
-    modal.classList.add("show");
-  }
+  setStatus("⚠️ Maintenance Mode Active — Site Locked");
 }
 
 function removeMaintenanceLockout() {
   if (!isMaintenanceLocked) return;
   isMaintenanceLocked = false;
-  maintenanceModalDismissed = false;
-  lastMaintenanceAnnouncementId = null;
-  document.body.classList.remove("maintenance-locked");
-
-  const stickyBar = document.getElementById("lockoutStickyBar");
-  if (stickyBar && !normalAnnouncementTimer) {
-    stickyBar.style.display = "none";
-    document.body.classList.remove("has-announcement-bar");
-  }
 
   const modal = document.getElementById("maintenanceModalBackdrop");
-  if (modal) {
-    modal.style.display = "none";
-    modal.classList.remove("show");
-  }
+  if (modal) modal.classList.remove("show");
 
   if (startButton) startButton.disabled = false;
-  if (chatToggleButton) chatToggleButton.disabled = false;
   updateMatchButtons();
   updateStopButton();
   updateRecordButton();
   applyChatState();
-  setStatus("Click Start Camera to begin");
+  setStatus("System updated. Click Start Camera when ready.");
 }
 
 function handlePeerDisconnected() {
@@ -1441,21 +1171,6 @@ if (reportButton)       reportButton.addEventListener("click", openReportModal);
 if (cancelReportButton) cancelReportButton.addEventListener("click", closeReportModal);
 if (submitReportButton) submitReportButton.addEventListener("click", submitReport);
 
-const closeMaintenanceBtn = document.getElementById("closeMaintenanceModalBtn");
-if (closeMaintenanceBtn) {
-  closeMaintenanceBtn.addEventListener("click", dismissMaintenanceModal);
-}
-
-const dismissMaintenanceBtn = document.getElementById("dismissMaintenanceModalBtn");
-if (dismissMaintenanceBtn) {
-  dismissMaintenanceBtn.addEventListener("click", dismissMaintenanceModal);
-}
-
-const reopenMaintenanceBtn = document.getElementById("reopenMaintenanceModalBtn");
-if (reopenMaintenanceBtn) {
-  reopenMaintenanceBtn.addEventListener("click", openMaintenanceModal);
-}
-
 if (chatForm) {
   chatForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -1469,37 +1184,17 @@ if (reportModalBackdrop) {
   });
 }
 
-const maintenanceModalBackdrop = document.getElementById("maintenanceModalBackdrop");
-if (maintenanceModalBackdrop) {
-  maintenanceModalBackdrop.addEventListener("click", (e) => {
-    if (e.target === maintenanceModalBackdrop) {
-      dismissMaintenanceModal(e);
-    }
-  });
-}
-
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") {
-    const modal = document.getElementById("maintenanceModalBackdrop");
-    if (modal && (modal.style.display === "flex" || modal.classList.contains("show"))) {
-      dismissMaintenanceModal();
-      return;
-    }
-    if (isMatched && hasStartedCamera) nextStranger();
-  }
+  if (e.key === "Escape" && isMatched && hasStartedCamera) nextStranger();
 });
 
 async function checkInitialAnnouncement() {
   try {
-    const res = await fetch("/api/announcement", { cache: "no-store" });
+    const res = await fetch("/api/announcement");
     if (!res.ok) return;
     const data = await res.json();
     if (data && data.announcement) {
       handleSystemAnnouncement(data.announcement);
-    } else {
-      if (isMaintenanceLocked || lastSeenNormalAnnouncementId) {
-        handleAnnouncementCleared();
-      }
     }
   } catch (_) {}
 }
@@ -1512,7 +1207,5 @@ updateVideoPlaceholders();
 applyChatState();
 setStatus("Click Start Camera to begin");
 checkInitialAnnouncement();
-// Continuous active polling ensures lockout announcement stays visible all time until admin deletes it
-setInterval(checkInitialAnnouncement, 3000);
 connectToSignalingServer();
 initAdsEngine();
