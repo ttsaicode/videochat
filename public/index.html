@@ -7,7 +7,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="shortcut icon" href="./svgbg.png" type="image/x-icon">
 
   <style>
     :root {
@@ -49,30 +48,6 @@
       flex-direction: column;
     }
 
-    /* ---------------- SYSTEM BROADCAST BANNER ---------------- */
-    .system-broadcast-banner {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 8px 16px;
-      background: linear-gradient(90deg, #7c4dff, #ec4899);
-      color: #fff;
-      font-size: 13px;
-      font-weight: 600;
-      z-index: 100;
-      animation: slideDown 0.3s ease;
-    }
-
-    .system-broadcast-banner.show {
-      display: flex;
-    }
-
-    @keyframes slideDown {
-      from { transform: translateY(-100%); }
-      to { transform: translateY(0); }
-    }
-
     /* ---------------- HEADER ---------------- */
 
     .top-bar {
@@ -95,6 +70,7 @@
       text-decoration: none;
     }
 
+    /* Screen blend mode eliminates pure black box background around image */
     .logo-image-wrapper {
       display: flex;
       align-items: center;
@@ -210,9 +186,6 @@
       background: #0c0e1a;
     }
 
-    #localVideo { transform: scaleX(-1); }
-    #remoteVideo { transform: none; }
-
     .video-label {
       position: absolute;
       top: 12px;
@@ -230,7 +203,7 @@
       gap: 6px;
     }
 
-    /* ---------------- PLACEHOLDERS ---------------- */
+    /* ---------------- PLACEHOLDERS (LELA STYLE — NO CIRCLES) ---------------- */
 
     .video-placeholder {
       position: absolute;
@@ -247,7 +220,8 @@
       padding: 16px;
     }
 
-    .placeholder-icon {
+    /* Icon wrapper — no visible circle, just the icon itself */
+        .placeholder-icon {
       position: relative;
       display: flex;
       align-items: center;
@@ -263,6 +237,8 @@
       filter: drop-shadow(0 0 8px rgba(124, 77, 255, 0.3));
     }
 
+
+    /* LELA radar animation — invisible rings expanding outward from the icon */
     .radar-sweep {
       position: absolute;
       width: 90px;
@@ -279,7 +255,10 @@
       100% { transform: scale(1.8); opacity: 0; }
     }
 
-    .radar-sweep.delayed { animation-delay: 1s; }
+    /* Second delayed ring for a richer radar effect */
+    .radar-sweep.delayed {
+      animation-delay: 1s;
+    }
 
     .placeholder-text {
       font-size: 15px;
@@ -301,7 +280,11 @@
       pointer-events: none;
     }
 
-    .chat-panel * { pointer-events: auto; }
+    .chat-panel * {
+      pointer-events: auto;
+    }
+
+        /* ---------------- CHAT DISABLED STATE ---------------- */
 
     .chat-panel.chat-off .chat-messages {
       opacity: 0.35;
@@ -313,12 +296,15 @@
       pointer-events: none;
     }
 
-    .chat-panel.chat-off .chat-input { cursor: not-allowed; }
+    .chat-panel.chat-off .chat-input {
+      cursor: not-allowed;
+    }
 
     .chat-panel.chat-off .chat-input::placeholder {
       color: rgba(255, 255, 255, 0.35);
       font-style: italic;
     }
+
 
     .chat-messages {
       display: flex;
@@ -332,12 +318,16 @@
       overscroll-behavior: contain;
       scrollbar-width: none;
       -ms-overflow-style: none;
+      /* LELA's signature fade-out mask at the top of the message list */
       -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 25%, black 100%);
       mask-image: linear-gradient(to bottom, transparent 0%, black 25%, black 100%);
     }
 
-    .chat-messages::-webkit-scrollbar { display: none; }
+    .chat-messages::-webkit-scrollbar {
+      display: none;
+    }
 
+    /* LELA bubble style — glass blur, tail corners, slide-up animation */
     .chat-message {
       width: fit-content;
       max-width: 85%;
@@ -396,7 +386,9 @@
       padding: 0 8px;
     }
 
-    .chat-input::placeholder { color: rgba(255, 255, 255, 0.4); }
+    .chat-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
 
     .send-button {
       height: 34px;
@@ -412,9 +404,11 @@
       transition: background 0.2s ease;
     }
 
-    .send-button:hover { background: var(--accent-purple-hover); }
+    .send-button:hover {
+      background: var(--accent-purple-hover);
+    }
 
-    /* ---------------- CONTROL BAR ---------------- */
+    /* ---------------- CONTROL BAR (GROUPED, SPACIOUS, ALIVE) ---------------- */
 
     .controls {
       min-height: 76px;
@@ -549,7 +543,9 @@
       pointer-events: none;
     }
 
-    .recording-indicator-global.show { display: inline-flex; }
+    .recording-indicator-global.show {
+      display: inline-flex;
+    }
 
     .recording-dot {
       width: 7px;
@@ -565,6 +561,13 @@
       50% { opacity: 0.35; }
     }
 
+    .record-modal-message {
+      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
     .control-button.report {
       background: transparent;
       border-color: rgba(239, 68, 68, 0.2);
@@ -577,7 +580,7 @@
       box-shadow: 0 6px 18px rgba(239, 68, 68, 0.18);
     }
 
-    /* ---------------- MODALS ---------------- */
+    /* ---------------- REPORT MODAL ---------------- */
 
     .modal-backdrop {
       position: fixed;
@@ -619,9 +622,13 @@
       font-size: 14px;
     }
 
-    .report-option:hover { background: rgba(255, 255, 255, 0.06); }
+    .report-option:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
 
-    .report-option input { accent-color: var(--accent-purple); }
+    .report-option input {
+      accent-color: var(--accent-purple);
+    }
 
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 
@@ -647,6 +654,7 @@
       box-shadow: 0 4px 16px var(--accent-glow);
     }
 
+
     /* ---------------- RECORDING RESULT MODAL ---------------- */
 
     .recording-result-modal {
@@ -657,21 +665,70 @@
       background: #121526;
       border: 1px solid var(--card-border);
       box-shadow: 0 30px 90px rgba(0, 0, 0, 0.5);
-      max-height: 92vh;
-      overflow-y: auto;
-      overscroll-behavior: contain;
     }
 
     .recording-result-modal h2 { margin-bottom: 8px; font-size: 20px; }
     .recording-result-modal p { margin-bottom: 16px; color: var(--text-muted); font-size: 14px; }
 
+    .platform-title {
+      margin-top: 18px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .platform-options {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .platform-option {
+      min-width: 0;
+      min-height: 66px;
+      padding: 9px 7px;
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+
+    .platform-option:hover {
+      background: rgba(255, 255, 255, 0.07);
+      transform: translateY(-1px);
+    }
+
+    .platform-option.selected {
+      background: rgba(124, 77, 255, 0.18);
+      border-color: rgba(124, 77, 255, 0.7);
+      box-shadow: 0 0 0 1px rgba(124, 77, 255, 0.14);
+    }
+
+    .platform-icon {
+      display: block;
+      font-size: 20px;
+      margin-bottom: 5px;
+    }
+
+    .platform-format-note {
+      margin-top: 8px;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
     .recording-preview {
       display: block;
-      width: min(100%, 360px);
-      height: auto;
-      max-height: 52vh;
-      margin: 0 auto;
-      aspect-ratio: 9 / 16;
+      width: 100%;
+      max-height: 58vh;
       border-radius: 14px;
       background: #080a12;
       border: 1px solid var(--card-border);
@@ -689,128 +746,6 @@
       line-height: 1.45;
     }
 
-    /* ---------------- PLATFORM / FORMAT SELECTOR ---------------- */
-
-    .platform-title {
-      margin-top: 18px;
-      margin-bottom: 10px;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.2px;
-      color: var(--text-main);
-    }
-
-    .platform-options {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    .platform-option {
-      position: relative;
-      min-width: 0;
-      min-height: 82px;
-      padding: 10px 6px;
-      border-radius: 12px;
-      border: 1px solid var(--card-border);
-      background: rgba(255, 255, 255, 0.035);
-      color: var(--text-main);
-      font-family: inherit;
-      font-size: 11px;
-      font-weight: 700;
-      line-height: 1.2;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-      text-align: center;
-      transition:
-        transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
-        background 0.18s ease,
-        border-color 0.18s ease,
-        box-shadow 0.18s ease;
-    }
-
-    .platform-option:hover {
-      background: rgba(255, 255, 255, 0.07);
-      transform: translateY(-2px);
-    }
-
-    .platform-option:active { transform: translateY(0) scale(0.97); }
-
-    .platform-option:focus-visible {
-      outline: 2px solid var(--accent-purple);
-      outline-offset: 2px;
-    }
-
-    .platform-option.selected {
-      background: rgba(124, 77, 255, 0.18);
-      border-color: rgba(124, 77, 255, 0.7);
-      box-shadow:
-        0 0 0 1px rgba(124, 77, 255, 0.14),
-        0 6px 18px rgba(124, 77, 255, 0.22);
-    }
-
-    .platform-option.selected::after {
-      content: '✓';
-      position: absolute;
-      top: 5px;
-      right: 6px;
-      width: 15px;
-      height: 15px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background: var(--accent-purple);
-      color: #fff;
-      font-size: 9px;
-      font-weight: 800;
-      line-height: 1;
-    }
-
-    .platform-icon { font-size: 19px; line-height: 1; }
-
-    .platform-name {
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 100%;
-    }
-
-    .platform-meta {
-      display: block;
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: 0.4px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-    }
-
-    .platform-option.selected .platform-meta { color: #d6c9ff; }
-
-    .platform-format-note {
-      margin-top: 10px;
-      padding: 9px 11px;
-      border-radius: 10px;
-      background: rgba(124, 77, 255, 0.07);
-      border: 1px solid rgba(124, 77, 255, 0.16);
-      color: #cdc4e8;
-      font-size: 11.5px;
-      line-height: 1.45;
-      transition: opacity 0.18s ease;
-    }
-
-    .platform-format-note.flash { animation: noteFlash 0.35s ease; }
-
-    @keyframes noteFlash {
-      0% { opacity: 0.3; transform: translateY(3px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-
     .recording-result-actions {
       display: flex;
       flex-wrap: wrap;
@@ -824,34 +759,15 @@
       border-color: rgba(239, 68, 68, 0.28);
     }
 
-    /* ---------------- BANNED MODAL ---------------- */
-    .banned-modal {
-      width: 100%;
-      max-width: 440px;
-      padding: 28px;
-      border-radius: 20px;
-      background: #180d14;
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      box-shadow: 0 30px 90px rgba(239, 68, 68, 0.3);
-      text-align: center;
-    }
-
-    .banned-icon { font-size: 48px; margin-bottom: 12px; }
-
-    .banned-modal h2 {
-      color: #ef4444;
-      font-size: 22px;
-      margin-bottom: 10px;
-    }
-
-    .banned-modal p {
-      color: #e5e7eb;
-      font-size: 14px;
-      line-height: 1.6;
+    @media (max-width: 680px) {
+      .recording-result-modal { padding: 16px; border-radius: 16px; }
+      .recording-indicator-global { margin-bottom: 8px; }
+      .recording-result-actions { justify-content: stretch; }
+      .recording-result-actions .modal-button { flex: 1 1 100%; }
     }
 
     /* ==========================================================================
-       RESPONSIVE
+       RESPONSIVE — stacked video layout on phones
        ========================================================================== */
 
     @media (max-width: 680px) {
@@ -867,7 +783,9 @@
       .status { display: none; }
       .online-count { font-size: 12px; padding: 4px 10px; }
 
-      .main-container { padding: 8px; }
+      .main-container {
+        padding: 8px;
+      }
 
       .video-grid {
         grid-template-columns: 1fr;
@@ -884,13 +802,30 @@
         left: 8px;
       }
 
-      .placeholder-icon { width: 32px; height: 32px; }
-      .placeholder-icon svg { width: 26px; height: 26px; }
-      .placeholder-text { font-size: 12px; }
-      .radar-sweep { width: 60px; height: 60px; }
+      .placeholder-icon {
+        width: 32px;
+        height: 32px;
+      }
 
-      .chat-message { font-size: 11px; padding: 6px 8px; }
+      .placeholder-icon svg {
+        width: 26px;
+        height: 26px;
+      }
+
+      .placeholder-text { font-size: 12px; }
+
+      .radar-sweep {
+        width: 60px;
+        height: 60px;
+      }
+
+      .chat-message {
+        font-size: 11px;
+        padding: 6px 8px;
+      }
+
       .chat-messages { max-height: 110px; }
+
       .chat-input-row { padding: 4px; }
       .chat-input { font-size: 12px; }
       .send-button { height: 28px; padding: 0 10px; font-size: 11px; }
@@ -921,26 +856,11 @@
         flex: 1;
         min-width: 0;
       }
-
-      .recording-result-modal { padding: 16px; border-radius: 16px; }
-      .recording-indicator-global { margin-bottom: 8px; }
-      .recording-preview { width: 100%; max-height: 40vh; }
-
-      .platform-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
-      .platform-option {
-        min-height: 72px;
-        font-size: 10.5px;
-      }
-
-      .recording-result-actions { justify-content: stretch; }
-      .recording-result-actions .modal-button { flex: 1 1 100%; }
     }
 
     @media (max-width: 380px) {
       .logo-text { font-size: 18px; }
       .control-button { padding: 0 10px; font-size: 11px; }
-      .platform-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
@@ -948,16 +868,11 @@
 <body>
   <div class="app">
 
-    <!-- ADMIN BROADCAST BANNER -->
-    <div id="broadcastBanner" class="system-broadcast-banner">
-      <span id="broadcastMessage">System announcement</span>
-    </div>
-
     <!-- HEADER -->
     <header class="top-bar">
       <a href="#" class="logo">
         <div class="logo-image-wrapper">
-          <img src="svgbg.png" alt="LELA Logo" class="logo-img" onerror="this.style.display='none'" />
+          <img src="svgbg.png" alt="LELA Logo" class="logo-img" />
         </div>
         <span class="logo-text">ሌላ</span>
       </a>
@@ -998,12 +913,13 @@
             playsinline
           ></video>
 
+
           <div class="video-label">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
             Stranger
           </div>
 
-          <div
+        <div
             id="remotePlaceholder"
             class="video-placeholder"
           >
@@ -1086,7 +1002,7 @@
       </div>
     </main>
 
-    <!-- CONTROLS -->
+    <!-- CONTROLS (GROUPED) -->
     <footer class="controls">
 
       <div class="control-group">
@@ -1150,7 +1066,7 @@
 
   </div>
 
-  <!-- RECORDING RESULT MODAL -->
+  <!-- RECORDING RESULT -->
   <div id="recordingResultBackdrop" class="modal-backdrop">
     <div class="recording-result-modal">
       <h2>Your encounter is ready 🎬</h2>
@@ -1170,80 +1086,34 @@
       <div id="recordingLocalNote" class="recording-local-note">
         🔒 <strong>Not uploaded.</strong>
         The recording is only in this browser right now.
-        Pick a target format below — the export is prepared on this device.
+        Choose a platform below and the export will be prepared on this device.
       </div>
 
-      <div id="platformTitle" class="platform-title">Where are you sharing this?</div>
-
-      <div
-        id="platformOptions"
-        class="platform-options"
-        role="radiogroup"
-        aria-labelledby="platformTitle"
-      >
-        <button
-          type="button"
-          class="platform-option selected"
-          data-platform="tiktok"
-          role="radio"
-          aria-checked="true"
-        >
-          <span class="platform-icon" aria-hidden="true">🎵</span>
-          <span class="platform-name">TikTok</span>
-          <span class="platform-meta">9:16 · 1080p</span>
+      <div class="platform-title">Where are you sharing this?</div>
+      <div id="platformOptions" class="platform-options">
+        <button type="button" class="platform-option selected" data-platform="tiktok">
+          <span class="platform-icon">🎵</span>
+          TikTok
         </button>
-
-        <button
-          type="button"
-          class="platform-option"
-          data-platform="instagram"
-          role="radio"
-          aria-checked="false"
-        >
-          <span class="platform-icon" aria-hidden="true">📸</span>
-          <span class="platform-name">Reels</span>
-          <span class="platform-meta">9:16 · 1080p</span>
+        <button type="button" class="platform-option" data-platform="instagram">
+          <span class="platform-icon">📸</span>
+          Instagram Reels
         </button>
-
-        <button
-          type="button"
-          class="platform-option"
-          data-platform="shorts"
-          role="radio"
-          aria-checked="false"
-        >
-          <span class="platform-icon" aria-hidden="true">▶️</span>
-          <span class="platform-name">Shorts</span>
-          <span class="platform-meta">9:16 · 60s</span>
+        <button type="button" class="platform-option" data-platform="shorts">
+          <span class="platform-icon">▶️</span>
+          YouTube Shorts
         </button>
-
-        <button
-          type="button"
-          class="platform-option"
-          data-platform="youtube"
-          role="radio"
-          aria-checked="false"
-        >
-          <span class="platform-icon" aria-hidden="true">📺</span>
-          <span class="platform-name">YouTube</span>
-          <span class="platform-meta">16:9 · 1080p</span>
+        <button type="button" class="platform-option" data-platform="youtube">
+          <span class="platform-icon">📺</span>
+          YouTube
         </button>
-
-        <button
-          type="button"
-          class="platform-option"
-          data-platform="original"
-          role="radio"
-          aria-checked="false"
-        >
-          <span class="platform-icon" aria-hidden="true">💾</span>
-          <span class="platform-name">Original</span>
-          <span class="platform-meta">As recorded</span>
+        <button type="button" class="platform-option" data-platform="original">
+          <span class="platform-icon">💾</span>
+          Original
         </button>
       </div>
-
-      <div id="platformFormatNote" class="platform-format-note" role="status" aria-live="polite">
-        Vertical 9:16 · 1080 × 1920 · caption-safe zones kept clear
+      <div id="platformFormatNote" class="platform-format-note">
+        Vertical 9:16 • optimized for short-form video
       </div>
 
       <div class="recording-result-actions">
@@ -1262,6 +1132,7 @@
         >
           🗑 Delete recording
         </button>
+
       </div>
     </div>
   </div>
@@ -1359,265 +1230,6 @@
 
     </div>
   </div>
-
-  <!-- BANNED MODAL -->
-  <div id="bannedModalBackdrop" class="modal-backdrop">
-    <div class="banned-modal">
-      <div class="banned-icon">🚫</div>
-      <h2>Access Suspended</h2>
-      <p id="bannedReasonText">You have been suspended from using this service due to a violation of community guidelines.</p>
-    </div>
-  </div>
-
-  <!-- ==========================================================================
-       EXPORT FORMAT SELECTOR
-       --------------------------------------------------------------------------
-       Self-contained controller for the platform/format radio group.
-       It does NOT touch app.js's handlers — it only:
-         1. keeps the visual selection in sync,
-         2. updates the human-readable format note,
-         3. publishes the chosen profile on window.LELA / a DOM event,
-         4. mirrors the profile onto #downloadRecordingButton's data-* attributes
-            (in the capture phase, so app.js can read them when its click
-             handler runs).
-       ========================================================================== -->
-  <script>
-    (function () {
-      'use strict';
-
-      var PROFILES = {
-        tiktok: {
-          label: 'TikTok',
-          ratio: '9:16',
-          width: 1080,
-          height: 1920,
-          extension: 'mp4',
-          mimeType: 'video/mp4',
-          filenameSuffix: '-tiktok',
-          note: 'Vertical 9:16 · 1080 × 1920 · caption-safe zones kept clear'
-        },
-        instagram: {
-          label: 'Instagram Reels',
-          ratio: '9:16',
-          width: 1080,
-          height: 1920,
-          extension: 'mp4',
-          mimeType: 'video/mp4',
-          filenameSuffix: '-reels',
-          note: 'Vertical 9:16 · 1080 × 1920 · Reels-safe margins, up to 90s'
-        },
-        shorts: {
-          label: 'YouTube Shorts',
-          ratio: '9:16',
-          width: 1080,
-          height: 1920,
-          extension: 'mp4',
-          mimeType: 'video/mp4',
-          filenameSuffix: '-shorts',
-          note: 'Vertical 9:16 · 1080 × 1920 · trimmed to 60s max for Shorts'
-        },
-        youtube: {
-          label: 'YouTube',
-          ratio: '16:9',
-          width: 1920,
-          height: 1080,
-          extension: 'mp4',
-          mimeType: 'video/mp4',
-          filenameSuffix: '-youtube',
-          note: 'Landscape 16:9 · 1920 × 1080 · vertical source is centred over a soft blur fill'
-        },
-        original: {
-          label: 'Original',
-          ratio: 'as recorded',
-          width: null,
-          height: null,
-          extension: 'webm',
-          mimeType: 'video/webm',
-          filenameSuffix: '',
-          note: 'Untouched capture · original resolution and codec, no re-encoding'
-        }
-      };
-
-      var DEFAULT_PLATFORM = 'tiktok';
-
-      var container   = document.getElementById('platformOptions');
-      var noteEl      = document.getElementById('platformFormatNote');
-      var downloadBtn = document.getElementById('downloadRecordingButton');
-
-      if (!container) { return; }
-
-      var buttons = Array.prototype.slice.call(
-        container.querySelectorAll('.platform-option')
-      );
-
-      if (!buttons.length) { return; }
-
-      var current = DEFAULT_PLATFORM;
-
-      /* -------- publish the active profile everywhere -------- */
-
-      function publish(key) {
-        var profile = PROFILES[key] || PROFILES[DEFAULT_PLATFORM];
-
-        var payload = {
-          platform: key,
-          label: profile.label,
-          ratio: profile.ratio,
-          width: profile.width,
-          height: profile.height,
-          extension: profile.extension,
-          mimeType: profile.mimeType,
-          filenameSuffix: profile.filenameSuffix,
-          note: profile.note
-        };
-
-        window.LELA = window.LELA || {};
-        window.LELA.exportProfile = payload;
-        window.LELA.platform = key;
-
-        if (downloadBtn) {
-          downloadBtn.dataset.exportPlatform  = key;
-          downloadBtn.dataset.exportLabel     = profile.label;
-          downloadBtn.dataset.exportRatio     = profile.ratio;
-          downloadBtn.dataset.exportWidth     = profile.width  == null ? '' : String(profile.width);
-          downloadBtn.dataset.exportHeight    = profile.height == null ? '' : String(profile.height);
-          downloadBtn.dataset.exportExtension = profile.extension;
-          downloadBtn.dataset.exportMime      = profile.mimeType;
-          downloadBtn.dataset.exportSuffix    = profile.filenameSuffix;
-        }
-
-        try {
-          window.dispatchEvent(
-            new CustomEvent('lela:platform-change', { detail: payload })
-          );
-        } catch (err) {
-          /* CustomEvent unsupported — the global + data-* attrs still work */
-        }
-
-        return payload;
-      }
-
-      /* -------- update the note text with a small flash -------- */
-
-      function renderNote(key) {
-        if (!noteEl) { return; }
-        var profile = PROFILES[key] || PROFILES[DEFAULT_PLATFORM];
-        noteEl.textContent = profile.note;
-        noteEl.dataset.platform = key;
-
-        noteEl.classList.remove('flash');
-        /* force reflow so the animation can restart */
-        void noteEl.offsetWidth;
-        noteEl.classList.add('flash');
-      }
-
-      /* -------- selection -------- */
-
-      function select(key, options) {
-        options = options || {};
-
-        if (!PROFILES[key]) { key = DEFAULT_PLATFORM; }
-
-        current = key;
-
-        buttons.forEach(function (btn) {
-          var isOn = btn.dataset.platform === key;
-          btn.classList.toggle('selected', isOn);
-          btn.setAttribute('aria-checked', isOn ? 'true' : 'false');
-          btn.tabIndex = isOn ? 0 : -1;
-        });
-
-        renderNote(key);
-        publish(key);
-
-        if (options.focus) {
-          var active = buttons.filter(function (b) {
-            return b.dataset.platform === key;
-          })[0];
-          if (active) { active.focus(); }
-        }
-      }
-
-      /* -------- pointer interaction -------- */
-
-      container.addEventListener('click', function (event) {
-        var btn = event.target.closest
-          ? event.target.closest('.platform-option')
-          : null;
-
-        if (!btn || !container.contains(btn)) { return; }
-
-        select(btn.dataset.platform);
-      });
-
-      /* -------- keyboard interaction (radiogroup pattern) -------- */
-
-      container.addEventListener('keydown', function (event) {
-        var handledKeys = [
-          'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'
-        ];
-
-        if (handledKeys.indexOf(event.key) === -1) { return; }
-
-        var index = buttons.indexOf(document.activeElement);
-
-        if (index === -1) {
-          index = buttons.findIndex(function (b) {
-            return b.classList.contains('selected');
-          });
-          if (index === -1) { index = 0; }
-        }
-
-        var next = index;
-
-        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-          next = (index + 1) % buttons.length;
-        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-          next = (index - 1 + buttons.length) % buttons.length;
-        } else if (event.key === 'Home') {
-          next = 0;
-        } else if (event.key === 'End') {
-          next = buttons.length - 1;
-        }
-
-        event.preventDefault();
-        select(buttons[next].dataset.platform, { focus: true });
-      });
-
-      /* -------- safety net: re-publish right before a download --------
-         Capture phase guarantees this runs before any bubble-phase
-         handler app.js has attached to the same button.               */
-
-      if (downloadBtn) {
-        downloadBtn.addEventListener('click', function () {
-          publish(current);
-        }, true);
-      }
-
-      /* -------- public API -------- */
-
-      window.LELA = window.LELA || {};
-      window.LELA.getExportProfile = function () {
-        return window.LELA.exportProfile;
-      };
-      window.LELA.setExportPlatform = function (key) {
-        select(key);
-        return window.LELA.exportProfile;
-      };
-      window.LELA.resetExportPlatform = function () {
-        select(DEFAULT_PLATFORM);
-        return window.LELA.exportProfile;
-      };
-
-      /* -------- initial state -------- */
-
-      var initial = buttons.filter(function (b) {
-        return b.classList.contains('selected');
-      })[0];
-
-      select(initial ? initial.dataset.platform : DEFAULT_PLATFORM);
-    })();
-  </script>
 
   <script src="/app.js"></script>
 </body>
