@@ -1,0 +1,14 @@
+# Required for production
+PORT=3000
+ADMIN_PATH=replace-with-a-random-24-plus-character-path
+ADMIN_USERNAME=replace-with-your-admin-username
+ADMIN_PASSWORD=replace-with-a-strong-12-plus-character-password
+JWT_SECRET=replace-with-a-random-32-plus-character-secret
+JWT_EXPIRY=2h
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=replace-with-server-only-secret
+REDIS_URL=redis://user:password@host:port
+# Comma-separated browser origins allowed to open the WebSocket.
+# Same-origin is always allowed; add your Vercel domain when the frontend moves there.
+ALLOWED_ORIGINS=https://your-public-site.example
+SUPABASE_ADS_BUCKET=ad-media

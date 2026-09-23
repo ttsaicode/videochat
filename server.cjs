@@ -36,11 +36,67 @@ if (!fs.existsSync(adminDir)) {
 // SECURITY & JWT CONFIGURATION
 // ==================================================
 
-const JWT_SECRET = process.env.JWT_SECRET || "lela_jwt_secret_2026_super_secure_key_99";
-const JWT_EXPIRY = process.env.JWT_EXPIRY || "8h";
+const IS_PRODUCTION =
+  process.env.NODE_ENV === "production" ||
+  Boolean(process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_ENVIRONMENT_NAME);
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const JWT_SECRET = String(process.env.JWT_SECRET || "").trim();
+const JWT_EXPIRY = String(process.env.JWT_EXPIRY || "2h").trim();
+const JWT_ISSUER = "lela-admin";
+
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || "").trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "");
+
+// Private admin route. Set ADMIN_PATH in the environment.
+const rawAdminPath = String(process.env.ADMIN_PATH || "").trim();
+const ADMIN_ROUTE = rawAdminPath
+  ? `/${rawAdminPath.replace(/^\/+|\/+$/g, "")}`
+  : null;
+
+const ALLOWED_ORIGINS = new Set(
+  String(process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+);
+
+function failFast(message) {
+  console.error(`[SECURITY] ${message}`);
+  process.exit(1);
+}
+
+if (IS_PRODUCTION) {
+  if (!JWT_SECRET || JWT_SECRET.length < 32) {
+    failFast("JWT_SECRET must be set and at least 32 characters long in production.");
+  }
+  if (!ADMIN_USERNAME || ADMIN_USERNAME.length < 3) {
+    failFast("ADMIN_USERNAME must be set in production.");
+  }
+  if (!ADMIN_PASSWORD || ADMIN_PASSWORD.length < 12) {
+    failFast("ADMIN_PASSWORD must be set and at least 12 characters long in production.");
+  }
+  if (!ADMIN_ROUTE || !/^[A-Za-z0-9_-]{24,128}$/.test(rawAdminPath)) {
+    failFast("ADMIN_PATH must be 24-128 characters using only letters, numbers, hyphens, or underscores in production.");
+  }
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    failFast("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required in production.");
+  }
+  if (JWT_EXPIRY !== "2h" && JWT_EXPIRY !== "4h" && JWT_EXPIRY !== "8h") {
+    failFast("JWT_EXPIRY must be 2h, 4h, or 8h in production.");
+  }
+}
+
+if (!JWT_SECRET) {
+  // Local development only. Production is blocked above.
+  console.warn("[SECURITY] JWT_SECRET is not configured; admin login is disabled until a secret is provided.");
+}
+if (!ADMIN_USERNAME || !ADMIN_PASSWORD) {
+  console.warn("[SECURITY] ADMIN_USERNAME / ADMIN_PASSWORD are not configured; environment fallback login is disabled.");
+}
+
+const ENV_ADMIN_PASSWORD_HASH = ADMIN_PASSWORD
+  ? bcrypt.hashSync(ADMIN_PASSWORD, 12)
+  : null;
 
 // Role-Based Access Control (RBAC) Permission Matrix
 const ROLE_PERMISSIONS = {
@@ -74,47 +130,68 @@ function hasPermission(role, requiredPermission) {
   return permissions.includes(requiredPermission);
 }
 
-// Token Blacklist for invalidated sessions on logout
+// Token blacklist fallback. Redis is used when available so revocations survive restarts.
 const tokenBlacklist = new Set();
 
 // Rate limiting for administrative login attempts (Brute-Force Protection)
-const loginAttempts = new Map(); // ip -> { count, firstAttempt, lockedUntil }
+const loginAttempts = new Map(); // key -> { count, firstAttempt, lockedUntil }
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 
-function checkRateLimit(ip) {
+function rateLimitKey(ip, username = "") {
+  const normalizedUser = String(username || "").trim().toLowerCase().slice(0, 120);
+  return `${ip}|${normalizedUser}`;
+}
+
+async function checkRateLimit(ip, username = "") {
+  const key = rateLimitKey(ip, username);
   const now = Date.now();
-  const record = loginAttempts.get(ip);
-  if (!record) return { allowed: true };
-
-  if (record.lockedUntil && now < record.lockedUntil) {
-    const remainingSeconds = Math.ceil((record.lockedUntil - now) / 1000);
-    return { allowed: false, error: `Too many failed attempts. Locked for ${remainingSeconds}s.` };
+  const record = loginAttempts.get(key);
+  if (record) {
+    if (record.lockedUntil && now < record.lockedUntil) {
+      const remainingSeconds = Math.ceil((record.lockedUntil - now) / 1000);
+      return { allowed: false, error: `Too many failed attempts. Locked for ${remainingSeconds}s.` };
+    }
+    if (now - record.firstAttempt > ATTEMPT_WINDOW_MS) {
+      loginAttempts.delete(key);
+    } else if (record.count >= MAX_FAILED_ATTEMPTS) {
+      record.lockedUntil = now + LOCKOUT_DURATION_MS;
+      return { allowed: false, error: "Too many failed attempts. Account locked for 15 minutes." };
+    }
   }
 
-  if (now - record.firstAttempt > ATTEMPT_WINDOW_MS) {
-    loginAttempts.delete(ip);
-    return { allowed: true };
-  }
-
-  if (record.count >= MAX_FAILED_ATTEMPTS) {
-    record.lockedUntil = now + LOCKOUT_DURATION_MS;
-    return { allowed: false, error: "Too many failed attempts. Account locked for 15 minutes." };
+  if (redis.isRedisConfigured()) {
+    const state = await redis.getRateLimitState(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`);
+    if (state && state.count >= MAX_FAILED_ATTEMPTS && state.ttl > 0) {
+      return { allowed: false, error: `Too many failed attempts. Locked for ${state.ttl}s.` };
+    }
   }
 
   return { allowed: true };
 }
 
-function recordFailedLogin(ip) {
+async function recordFailedLogin(ip, username = "") {
+  const key = rateLimitKey(ip, username);
   const now = Date.now();
-  const record = loginAttempts.get(ip) || { count: 0, firstAttempt: now, lockedUntil: 0 };
+  const record = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: 0 };
   record.count += 1;
-  loginAttempts.set(ip, record);
+  if (record.count >= MAX_FAILED_ATTEMPTS) {
+    record.lockedUntil = now + LOCKOUT_DURATION_MS;
+  }
+  loginAttempts.set(key, record);
+
+  if (redis.isRedisConfigured()) {
+    await redis.recordRateLimitFailure(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`, Math.ceil(ATTEMPT_WINDOW_MS / 1000));
+  }
 }
 
-function resetLoginAttempts(ip) {
-  loginAttempts.delete(ip);
+async function resetLoginAttempts(ip, username = "") {
+  const key = rateLimitKey(ip, username);
+  loginAttempts.delete(key);
+  if (redis.isRedisConfigured()) {
+    await redis.resetRateLimit(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`);
+  }
 }
 
 // Helper: Client IP detection with proxy support
@@ -148,15 +225,29 @@ function parseJsonBody(req) {
   });
 }
 
-// Helper: Verify JWT token from Authorization header
-function verifyAdminToken(req) {
+// Helper: Verify JWT token from Authorization header, revocation store, and session version.
+async function verifyAdminToken(req) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return null;
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token || tokenBlacklist.has(token)) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+      issuer: JWT_ISSUER,
+      audience: JWT_ISSUER
+    });
+
+    if (await redis.isAdminTokenRevoked(token)) {
+      return null;
+    }
+
+    const currentSessionVersion = await redis.getAdminSessionVersion(decoded.id || "admin-root");
+    if (Number(decoded.sv || 0) !== Number(currentSessionVersion)) {
+      return null;
+    }
+
     return { ...decoded, token };
   } catch (err) {
     return null;
@@ -209,13 +300,63 @@ const announcementHistory = [];
 const server = http.createServer(async (req, res) => {
   let requestPath = req.url.split("?")[0];
 
+  // Shared security headers for every HTTP response.
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const isHttps = req.socket.encrypted || forwardedProto === "https";
+  const isAdminRequest = Boolean(ADMIN_ROUTE && (requestPath === ADMIN_ROUTE || requestPath.startsWith(`${ADMIN_ROUTE}/`) || requestPath.startsWith("/api/admin/")));
+
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("Origin-Agent-Cluster", "?1");
+  res.setHeader("Cache-Control", isAdminRequest ? "no-store" : "no-cache");
+  if (isHttps) {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+
+  const adminCsp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "connect-src 'self'",
+    "worker-src 'self' blob:"
+  ].join("; ");
+
+  const publicCsp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "connect-src 'self' ws: wss:",
+    "worker-src 'self' blob:"
+  ].join("; ");
+
+  res.setHeader("Content-Security-Policy", isAdminRequest ? adminCsp : publicCsp);
+
   // Helper for JSON responses with security headers
   const sendJson = (status, obj) => {
     res.writeHead(status, {
       "Content-Type": "application/json",
       "X-Content-Type-Options": "nosniff",
       "X-Frame-Options": "DENY",
-      "Referrer-Policy": "strict-origin-when-cross-origin"
+      "Referrer-Policy": "no-referrer",
+      "Cache-Control": "no-store"
     });
     res.end(JSON.stringify(obj));
   };
@@ -224,8 +365,19 @@ const server = http.createServer(async (req, res) => {
   // ADMIN DASHBOARD HTML & AUTH
   // --------------------------------------------------
 
-  // Admin Dashboard page
-  if (requestPath === "/admin" || requestPath === "/admin/") {
+  // Never expose the admin login at the public /admin path.
+  if (requestPath === "/admin" || requestPath === "/admin/" || requestPath === "/admin/index.html") {
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store"
+    });
+    res.end("Not found");
+    return;
+  }
+
+  // Private admin dashboard route. The actual path comes only from ADMIN_PATH.
+  if (ADMIN_ROUTE && (requestPath === ADMIN_ROUTE || requestPath === `${ADMIN_ROUTE}/` || requestPath === `${ADMIN_ROUTE}/index.html`)) {
     const adminHtmlPath = path.join(adminDir, "index.html");
     fs.readFile(adminHtmlPath, (err, data) => {
       if (err) {
@@ -234,23 +386,61 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
-        "X-Content-Type-Options": "nosniff"
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store"
       });
       res.end(data);
     });
     return;
   }
 
+  // Serve the private admin's small static assets under the same private route.
+  if (ADMIN_ROUTE && requestPath.startsWith(`${ADMIN_ROUTE}/`)) {
+    const relativeAdminPath = requestPath.slice(`${ADMIN_ROUTE}/`.length);
+    const safeAdminName = path.basename(relativeAdminPath);
+
+    if (relativeAdminPath && safeAdminName === relativeAdminPath) {
+      const adminFilePath = path.join(adminDir, safeAdminName);
+      fs.readFile(adminFilePath, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          return res.end("Not found");
+        }
+
+        const ext = path.extname(adminFilePath).toLowerCase();
+        const contentTypes = {
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".svg": "image/svg+xml",
+          ".ico": "image/x-icon",
+          ".css": "text/css; charset=utf-8",
+          ".js": "application/javascript; charset=utf-8"
+        };
+
+        res.writeHead(200, {
+          "Content-Type": contentTypes[ext] || "application/octet-stream",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-store"
+        });
+        res.end(data);
+      });
+      return;
+    }
+  }
+
   // Admin Login with JWT issuance and Brute-Force lockout protection
   if (requestPath === "/api/admin/login" && req.method === "POST") {
     const clientIp = getClientIp(req);
-    const rateCheck = checkRateLimit(clientIp);
-    if (!rateCheck.allowed) {
-      return sendJson(429, { error: rateCheck.error });
-    }
 
     try {
-      const { username, password } = await parseJsonBody(req);
+      const { username: rawUsername, password } = await parseJsonBody(req);
+      const username = String(rawUsername || "").trim();
+      const rateCheck = await checkRateLimit(clientIp, username);
+      if (!rateCheck.allowed) {
+        return sendJson(429, { error: rateCheck.error });
+      }
+
       if (!username || !password) {
         return sendJson(400, { error: "Username and password required" });
       }
@@ -262,23 +452,25 @@ const server = http.createServer(async (req, res) => {
       let adminId = "admin-root";
       let email = "admin@lela.chat";
 
-      if (dbAdmin) {
+      if (dbAdmin && dbAdmin.is_active !== false) {
         adminId = dbAdmin.id;
         userRole = dbAdmin.role || "admin";
         email = dbAdmin.email || `${username}@lela.chat`;
 
         if (dbAdmin.password_hash) {
           isValidUser = bcrypt.compareSync(password, dbAdmin.password_hash);
-        } else if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-          isValidUser = true;
+        } else if (username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+          isValidUser = bcrypt.compareSync(password, ENV_ADMIN_PASSWORD_HASH);
         }
-      } else if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        isValidUser = true;
+      } else if (!dbAdmin && username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+        isValidUser = bcrypt.compareSync(password, ENV_ADMIN_PASSWORD_HASH);
         userRole = "superadmin";
       }
 
       if (isValidUser) {
-        resetLoginAttempts(clientIp);
+        await resetLoginAttempts(clientIp, username);
+
+        const sessionVersion = await redis.getAdminSessionVersion(adminId);
 
         // Sign cryptographically verified JWT token
         const token = jwt.sign(
@@ -287,10 +479,16 @@ const server = http.createServer(async (req, res) => {
             username,
             email,
             role: userRole,
-            permissions: ROLE_PERMISSIONS[userRole] || []
+            permissions: ROLE_PERMISSIONS[userRole] || [],
+            sv: sessionVersion
           },
           JWT_SECRET,
-          { expiresIn: JWT_EXPIRY }
+          {
+            expiresIn: JWT_EXPIRY,
+            algorithm: "HS256",
+            issuer: JWT_ISSUER,
+            audience: JWT_ISSUER
+          }
         );
 
         await supabase.logAction("ADMIN_LOGIN", { username, role: userRole, ip: clientIp }, adminId, clientIp);
@@ -308,7 +506,7 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      recordFailedLogin(clientIp);
+      await recordFailedLogin(clientIp, username);
       return sendJson(401, { error: "Invalid username or password credentials" });
     } catch (e) {
       return sendJson(400, { error: e.message || "Login request error" });
@@ -317,9 +515,10 @@ const server = http.createServer(async (req, res) => {
 
   // Admin Logout (Invalidates JWT Session)
   if (requestPath === "/api/admin/logout" && req.method === "POST") {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (admin && admin.token) {
       tokenBlacklist.add(admin.token);
+      await redis.revokeAdminToken(admin.token, admin.exp);
       await supabase.logAction("ADMIN_LOGOUT", { username: admin.username }, admin.id, getClientIp(req));
     }
     return sendJson(200, { success: true, message: "Logged out successfully" });
@@ -327,7 +526,7 @@ const server = http.createServer(async (req, res) => {
 
   // Admin Heartbeat for session liveness
   if (requestPath === "/api/admin/heartbeat" && req.method === "POST") {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (!admin) return sendJson(401, { error: "Session expired" });
     return sendJson(200, { status: "active", user: admin });
   }
@@ -337,7 +536,7 @@ const server = http.createServer(async (req, res) => {
   // --------------------------------------------------
 
   if (requestPath.startsWith("/api/admin/")) {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (!admin) {
       return sendJson(401, { error: "Unauthorized. Valid JWT token required." });
     }
@@ -481,7 +680,11 @@ const server = http.createServer(async (req, res) => {
       const form = new formidable.IncomingForm({
         uploadDir: uploadsDir,
         keepExtensions: true,
-        maxFileSize: 45 * 1024 * 1024 // 45MB temporary upload cap for Supabase Storage
+        multiples: false,
+        maxFiles: 1,
+        maxFileSize: 45 * 1024 * 1024,
+        maxFields: 20,
+        maxFieldsSize: 128 * 1024 // Keep metadata small; media is separately capped.
       });
 
       form.parse(req, async (err, fields, files) => {
@@ -927,7 +1130,10 @@ const server = http.createServer(async (req, res) => {
       if (!username || !password) {
         return sendJson(400, { error: "Username and password required" });
       }
-      const salt = bcrypt.genSaltSync(10);
+      if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+        return sendJson(400, { error: "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
+      }
+      const salt = bcrypt.genSaltSync(12);
       const hash = bcrypt.hashSync(password, salt);
 
       const created = await supabase.createAdminAccount({
@@ -954,6 +1160,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const updated = await supabase.updateAdminRole(targetId, role);
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.logAction("ROLE_UPDATED", { targetId, newRole: role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, admin: updated });
     }
@@ -964,8 +1171,8 @@ const server = http.createServer(async (req, res) => {
       if (!currentPassword || !newPassword) {
         return sendJson(400, { error: "Current password and new password are required" });
       }
-      if (newPassword.length < 6) {
-        return sendJson(400, { error: "New password must be at least 6 characters" });
+      if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+        return sendJson(400, { error: "New password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
       }
 
       // Fetch user from DB/store
@@ -973,17 +1180,19 @@ const server = http.createServer(async (req, res) => {
       let isMatch = false;
       if (user && user.password_hash) {
         isMatch = bcrypt.compareSync(currentPassword, user.password_hash);
-      } else if (admin.username === ADMIN_USERNAME && currentPassword === ADMIN_PASSWORD) {
-        isMatch = true;
+      } else if (admin.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+        isMatch = bcrypt.compareSync(currentPassword, ENV_ADMIN_PASSWORD_HASH);
       }
 
       if (!isMatch) {
         return sendJson(401, { error: "Current password is incorrect" });
       }
 
-      const salt = bcrypt.genSaltSync(10);
+      const salt = bcrypt.genSaltSync(12);
       const newHash = bcrypt.hashSync(newPassword, salt);
       const updatedUser = await supabase.updateAdminPassword(admin.id, newHash);
+      await redis.bumpAdminSessionVersion(admin.id);
+      await redis.revokeAdminToken(admin.token, admin.exp);
       await supabase.logAction("PASSWORD_CHANGED", { username: admin.username, role: admin.role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: "Password updated successfully" });
     }
@@ -1019,6 +1228,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.deleteAdminAccount(targetId);
       await supabase.logAction("ADMIN_DELETED", { targetId, username: targetUser.username, role: targetUser.role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: `Account for ${targetUser.username} deleted successfully` });
@@ -1032,16 +1242,17 @@ const server = http.createServer(async (req, res) => {
       }
       const targetId = userPassMatch[1];
       const { newPassword } = await parseJsonBody(req);
-      if (!newPassword || newPassword.length < 6) {
-        return sendJson(400, { error: "Password must be at least 6 characters" });
+      if (!newPassword || newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+        return sendJson(400, { error: "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
       }
       const targetUser = await supabase.getAdminById(targetId);
       if (!targetUser) {
         return sendJson(404, { error: "Account not found" });
       }
-      const salt = bcrypt.genSaltSync(10);
+      const salt = bcrypt.genSaltSync(12);
       const hash = bcrypt.hashSync(newPassword, salt);
       await supabase.updateAdminPassword(targetId, hash);
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.logAction("ADMIN_PASSWORD_RESET", { targetId, username: targetUser.username }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: `Password reset for ${targetUser.username}` });
     }
@@ -1206,18 +1417,55 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// Harden HTTP connection handling against slow clients.
+server.requestTimeout = 30_000;
+server.headersTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
+
 // ==================================================
 // WEBSOCKET SIGNALING SERVER (WEBRTC)
 // ==================================================
 
 const wss = new WebSocket.Server({
   server,
-  maxPayload: 64 * 1024 // 64KB max payload (DoS protection)
+  maxPayload: 64 * 1024, // 64KB max payload (DoS protection)
+  perMessageDeflate: false
 });
+
+function isAllowedWebSocketOrigin(request) {
+  const origin = String(request.headers.origin || "").trim();
+  if (!origin) return true; // non-browser clients / native clients
+
+  const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || (request.socket.encrypted ? "https" : "http");
+  const host = String(request.headers.host || "").trim();
+  const sameOrigin = host ? `${protocol}://${host}` : "";
+
+  if (sameOrigin && origin === sameOrigin) return true;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+
+  // In production, reject browser origins that are not explicitly allowed.
+  return !IS_PRODUCTION;
+}
 
 let nextClientId = 1;
 const waitingClients = [];
 const connectedClients = new Set();
+const reportThrottle = new Map();
+const REPORT_LIMIT = 5;
+const REPORT_WINDOW_MS = 10 * 60 * 1000;
+
+function canSubmitReport(ip) {
+  const now = Date.now();
+  const current = reportThrottle.get(ip);
+  if (!current || now - current.windowStart > REPORT_WINDOW_MS) {
+    reportThrottle.set(ip, { windowStart: now, count: 1 });
+    return true;
+  }
+  if (current.count >= REPORT_LIMIT) return false;
+  current.count += 1;
+  return true;
+}
 
 function broadcastOnlineCount() {
   const uniqueIps = new Set();
@@ -1291,6 +1539,11 @@ function tryMatchUsers() {
 }
 
 wss.on("connection", async (socket, request) => {
+  if (!isAllowedWebSocketOrigin(request)) {
+    try { socket.close(1008, "Origin not allowed"); } catch (_) {}
+    return;
+  }
+
   const clientIp = getClientIp(request);
 
   // Rapid Banned IP verification check
@@ -1342,10 +1595,16 @@ wss.on("connection", async (socket, request) => {
     }
 
     if (message.type === "ready") {
-      if (socket.ready) return;
+      // "ready" is intentionally idempotent. A client may already be marked
+      // ready when its previous peer disconnects, but it still needs to be
+      // placed back into the waiting queue for the next match.
       socket.ready = true;
-      putInWaitingQueue(socket);
-      tryMatchUsers();
+
+      if (!socket.peer) {
+        putInWaitingQueue(socket);
+        tryMatchUsers();
+      }
+
       return;
     }
 
@@ -1357,8 +1616,18 @@ wss.on("connection", async (socket, request) => {
 
       if (oldPeer && oldPeer.readyState === WebSocket.OPEN) {
         oldPeer.peer = null;
+
+        // The remaining person is still actively using the service, so
+        // immediately place them back into the matchmaking queue. The client
+        // will also send "ready" after handling peer-disconnected; the ready
+        // handler above is idempotent, so either path is safe.
+        oldPeer.ready = true;
+        putInWaitingQueue(oldPeer);
+
         send(oldPeer, { type: "peer-disconnected" });
       }
+
+      tryMatchUsers();
       return;
     }
 
@@ -1386,6 +1655,11 @@ wss.on("connection", async (socket, request) => {
     }
 
     if (message.type === "report") {
+      if (!canSubmitReport(socket.ip)) {
+        send(socket, { type: "report-rate-limited", message: "Too many reports. Please try again later." });
+        return;
+      }
+
       const reportedPeer = socket.peer;
       const reportData = {
         reporterId: socket.id,
@@ -1453,8 +1727,9 @@ server.listen(PORT, HOST, () => {
   console.log("==================================================");
   console.log(`Port: ${PORT} | Host: ${HOST}`);
   console.log(`User Dashboard:  http://localhost:${PORT}/`);
-  console.log(`Admin Panel:     http://localhost:${PORT}/admin`);
-  console.log(`Default Super:   ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
+  console.log(`Public /admin:   404 Not Found`);
+  console.log(`Private Admin:   ${ADMIN_ROUTE ? "configured via ADMIN_PATH (path not printed)" : "DISABLED (set ADMIN_PATH)"}`);
+  console.log(`Admin credentials: loaded from environment/database`);
   console.log("==================================================");
   console.log("");
 });
