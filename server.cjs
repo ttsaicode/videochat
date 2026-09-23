@@ -13,8 +13,8 @@ const bcrypt = require("bcryptjs");
 const supabase = require("./lib/supabase.cjs");
 const redis = require("./lib/redis.cjs");
 
-// Runtime Port & Host configuration (Port 3000 is required by the container environment)
-const PORT = 3000;
+// Runtime Port & Host configuration (Supports dynamic cloud container ports like Railway)
+const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
 const publicDir = path.join(__dirname, "public");
