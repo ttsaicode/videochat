@@ -6,41 +6,86 @@ const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
 const WebSocket = require("ws");
-const formidable = require("formidable");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 
 const supabase = require("./lib/supabase.cjs");
 const redis = require("./lib/redis.cjs");
 
-// Runtime Port & Host configuration (Supports dynamic cloud container ports like Railway)
-const PORT = process.env.PORT || 3000;
+// Runtime Port & Host configuration
+const PORT = parseInt(process.env.PORT, 10) || 3000;
 const HOST = "0.0.0.0";
 
 const publicDir = path.join(__dirname, "public");
 const adminDir = path.join(__dirname, "admin");
-const uploadsDir = path.join(__dirname, "uploads");
 
-// Ensure required directories exist
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir, { recursive: true });
-}
-if (!fs.existsSync(adminDir)) {
-  fs.mkdirSync(adminDir, { recursive: true });
-}
+if (!fs.existsSync(publicDir)) fs.mkdirSync(publicDir, { recursive: true });
+if (!fs.existsSync(adminDir)) fs.mkdirSync(adminDir, { recursive: true });
 
 // ==================================================
 // SECURITY & JWT CONFIGURATION
 // ==================================================
 
-const JWT_SECRET = process.env.JWT_SECRET || "lela_jwt_secret_2026_super_secure_key_99";
-const JWT_EXPIRY = process.env.JWT_EXPIRY || "8h";
+const IS_PRODUCTION =
+  process.env.NODE_ENV === "production" ||
+  Boolean(
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.RAILWAY_ENVIRONMENT_NAME ||
+    process.env.RENDER ||
+    process.env.RENDER_SERVICE_ID ||
+    process.env.FLY_APP_NAME ||
+    process.env.HEROKU_APP_ID ||
+    process.env.KOYEB_SERVICE_ID ||
+    process.env.VERCEL ||
+    process.env.DIGITALOCEAN_APP_ID ||
+    process.env.CONTAINER_APP_NAME ||
+    process.env.ZEABUR_ENVIRONMENT
+  );
 
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const JWT_SECRET = String(process.env.JWT_SECRET || "").trim();
+const JWT_EXPIRY = String(process.env.JWT_EXPIRY || "8h").trim();
+const JWT_ISSUER = "lela-admin";
+
+const ADMIN_USERNAME = String(process.env.ADMIN_USERNAME || "").trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "");
+
+// Private admin route. ADMIN_PATH must be provided in production; /admin is always hidden.
+const rawAdminPath = String(process.env.ADMIN_PATH || "").trim();
+const ADMIN_ROUTE = rawAdminPath
+  ? `/${rawAdminPath.replace(/^\/+|\/+$/g, "")}`
+  : null;
+
+const CONTACT_PHONE = String(process.env.CONTACT_PHONE || "").trim();
+const SUPABASE_ORIGIN = (() => {
+  try { return process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).origin : ""; } catch (_) { return ""; }
+})();
+
+const ALLOWED_ORIGINS = new Set(
+  String(process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+);
+
+
+const ENV_ADMIN_PASSWORD_HASH = ADMIN_PASSWORD
+  ? bcrypt.hashSync(ADMIN_PASSWORD, 12)
+  : null;
+
+if (IS_PRODUCTION) {
+  const missing = [];
+  if (JWT_SECRET.length < 32) missing.push("JWT_SECRET (32+ chars)");
+  if (!ADMIN_USERNAME) missing.push("ADMIN_USERNAME");
+  if (!ADMIN_PASSWORD) missing.push("ADMIN_PASSWORD");
+  if (!ADMIN_ROUTE || rawAdminPath.length < 24) missing.push("ADMIN_PATH (24+ chars)");
+  if (!process.env.SUPABASE_URL) missing.push("SUPABASE_URL");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missing.push("SUPABASE_SERVICE_ROLE_KEY");
+  if (missing.length) {
+    console.error(`[SECURITY] Missing required production variables: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
+
 
 // Role-Based Access Control (RBAC) Permission Matrix
 const ROLE_PERMISSIONS = {
@@ -74,47 +119,69 @@ function hasPermission(role, requiredPermission) {
   return permissions.includes(requiredPermission);
 }
 
-// Token Blacklist for invalidated sessions on logout
+// Token blacklist fallback. Redis is used when available so revocations survive restarts.
 const tokenBlacklist = new Set();
 
 // Rate limiting for administrative login attempts (Brute-Force Protection)
-const loginAttempts = new Map(); // ip -> { count, firstAttempt, lockedUntil }
+const loginAttempts = new Map(); // key -> { count, firstAttempt, lockedUntil }
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 
-function checkRateLimit(ip) {
+
+function rateLimitKey(ip, username = "") {
+  const normalizedUser = String(username || "").trim().toLowerCase().slice(0, 120);
+  return `${ip}|${normalizedUser}`;
+}
+
+async function checkRateLimit(ip, username = "") {
+  const key = rateLimitKey(ip, username);
   const now = Date.now();
-  const record = loginAttempts.get(ip);
-  if (!record) return { allowed: true };
-
-  if (record.lockedUntil && now < record.lockedUntil) {
-    const remainingSeconds = Math.ceil((record.lockedUntil - now) / 1000);
-    return { allowed: false, error: `Too many failed attempts. Locked for ${remainingSeconds}s.` };
+  const record = loginAttempts.get(key);
+  if (record) {
+    if (record.lockedUntil && now < record.lockedUntil) {
+      const remainingSeconds = Math.ceil((record.lockedUntil - now) / 1000);
+      return { allowed: false, error: `Too many failed attempts. Locked for ${remainingSeconds}s.` };
+    }
+    if (now - record.firstAttempt > ATTEMPT_WINDOW_MS) {
+      loginAttempts.delete(key);
+    } else if (record.count >= MAX_FAILED_ATTEMPTS) {
+      record.lockedUntil = now + LOCKOUT_DURATION_MS;
+      return { allowed: false, error: "Too many failed attempts. Account locked for 15 minutes." };
+    }
   }
 
-  if (now - record.firstAttempt > ATTEMPT_WINDOW_MS) {
-    loginAttempts.delete(ip);
-    return { allowed: true };
-  }
-
-  if (record.count >= MAX_FAILED_ATTEMPTS) {
-    record.lockedUntil = now + LOCKOUT_DURATION_MS;
-    return { allowed: false, error: "Too many failed attempts. Account locked for 15 minutes." };
+  if (redis.isRedisConfigured()) {
+    const state = await redis.getRateLimitState(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`);
+    if (state && state.count >= MAX_FAILED_ATTEMPTS && state.ttl > 0) {
+      return { allowed: false, error: `Too many failed attempts. Locked for ${state.ttl}s.` };
+    }
   }
 
   return { allowed: true };
 }
 
-function recordFailedLogin(ip) {
+async function recordFailedLogin(ip, username = "") {
+  const key = rateLimitKey(ip, username);
   const now = Date.now();
-  const record = loginAttempts.get(ip) || { count: 0, firstAttempt: now, lockedUntil: 0 };
+  const record = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: 0 };
   record.count += 1;
-  loginAttempts.set(ip, record);
+  if (record.count >= MAX_FAILED_ATTEMPTS) {
+    record.lockedUntil = now + LOCKOUT_DURATION_MS;
+  }
+  loginAttempts.set(key, record);
+
+  if (redis.isRedisConfigured()) {
+    await redis.recordRateLimitFailure(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`, Math.ceil(ATTEMPT_WINDOW_MS / 1000));
+  }
 }
 
-function resetLoginAttempts(ip) {
-  loginAttempts.delete(ip);
+async function resetLoginAttempts(ip, username = "") {
+  const key = rateLimitKey(ip, username);
+  loginAttempts.delete(key);
+  if (redis.isRedisConfigured()) {
+    await redis.resetRateLimit(`admin-login:${crypto.createHash("sha256").update(key).digest("hex")}`);
+  }
 }
 
 // Helper: Client IP detection with proxy support
@@ -148,15 +215,29 @@ function parseJsonBody(req) {
   });
 }
 
-// Helper: Verify JWT token from Authorization header
-function verifyAdminToken(req) {
+// Helper: Verify JWT token from Authorization header, revocation store, and session version.
+async function verifyAdminToken(req) {
   const authHeader = req.headers["authorization"];
   if (!authHeader) return null;
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token || tokenBlacklist.has(token)) return null;
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+      issuer: JWT_ISSUER,
+      audience: JWT_ISSUER
+    });
+
+    if (await redis.isAdminTokenRevoked(token)) {
+      return null;
+    }
+
+    const currentSessionVersion = await redis.getAdminSessionVersion(decoded.id || "admin-root");
+    if (Number(decoded.sv || 0) !== Number(currentSessionVersion)) {
+      return null;
+    }
+
     return { ...decoded, token };
   } catch (err) {
     return null;
@@ -209,13 +290,63 @@ const announcementHistory = [];
 const server = http.createServer(async (req, res) => {
   let requestPath = req.url.split("?")[0];
 
+  // Shared security headers for every HTTP response.
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const isHttps = req.socket.encrypted || forwardedProto === "https";
+  const isAdminRequest = Boolean(ADMIN_ROUTE && (requestPath === ADMIN_ROUTE || requestPath.startsWith(`${ADMIN_ROUTE}/`) || requestPath.startsWith("/api/admin/")));
+
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  res.setHeader("X-Permitted-Cross-Domain-Policies", "none");
+  res.setHeader("Origin-Agent-Cluster", "?1");
+  res.setHeader("Cache-Control", isAdminRequest ? "no-store" : "no-cache");
+  if (isHttps) {
+    res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  }
+
+  const adminCsp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "connect-src 'self'" + (SUPABASE_ORIGIN ? ` ${SUPABASE_ORIGIN}` : ""),
+    "worker-src 'self' blob:"
+  ].join("; ");
+
+  const publicCsp = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob: https:",
+    "connect-src 'self' ws: wss:",
+    "worker-src 'self' blob:"
+  ].join("; ");
+
+  res.setHeader("Content-Security-Policy", isAdminRequest ? adminCsp : publicCsp);
+
   // Helper for JSON responses with security headers
   const sendJson = (status, obj) => {
     res.writeHead(status, {
       "Content-Type": "application/json",
       "X-Content-Type-Options": "nosniff",
       "X-Frame-Options": "DENY",
-      "Referrer-Policy": "strict-origin-when-cross-origin"
+      "Referrer-Policy": "no-referrer",
+      "Cache-Control": "no-store"
     });
     res.end(JSON.stringify(obj));
   };
@@ -224,8 +355,19 @@ const server = http.createServer(async (req, res) => {
   // ADMIN DASHBOARD HTML & AUTH
   // --------------------------------------------------
 
-  // Admin Dashboard page
-  if (requestPath === "/admin" || requestPath === "/admin/") {
+  // Always hide the public /admin path. Dashboard is available only at ADMIN_PATH.
+  if (requestPath === "/admin" || requestPath === "/admin/" || requestPath === "/admin/index.html") {
+    res.writeHead(404, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "no-store"
+    });
+    res.end("Not found");
+    return;
+  }
+
+  // Private admin dashboard route. The actual path comes only from ADMIN_PATH.
+  if (ADMIN_ROUTE && (requestPath === ADMIN_ROUTE || requestPath === `${ADMIN_ROUTE}/` || requestPath === `${ADMIN_ROUTE}/index.html`)) {
     const adminHtmlPath = path.join(adminDir, "index.html");
     fs.readFile(adminHtmlPath, (err, data) => {
       if (err) {
@@ -234,23 +376,61 @@ const server = http.createServer(async (req, res) => {
       }
       res.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
-        "X-Content-Type-Options": "nosniff"
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store"
       });
       res.end(data);
     });
     return;
   }
 
+  // Serve the private admin's small static assets under the same private route.
+  if (ADMIN_ROUTE && requestPath.startsWith(`${ADMIN_ROUTE}/`)) {
+    const relativeAdminPath = requestPath.slice(`${ADMIN_ROUTE}/`.length);
+    const safeAdminName = path.basename(relativeAdminPath);
+
+    if (relativeAdminPath && safeAdminName === relativeAdminPath) {
+      const adminFilePath = path.join(adminDir, safeAdminName);
+      fs.readFile(adminFilePath, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          return res.end("Not found");
+        }
+
+        const ext = path.extname(adminFilePath).toLowerCase();
+        const contentTypes = {
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".svg": "image/svg+xml",
+          ".ico": "image/x-icon",
+          ".css": "text/css; charset=utf-8",
+          ".js": "application/javascript; charset=utf-8"
+        };
+
+        res.writeHead(200, {
+          "Content-Type": contentTypes[ext] || "application/octet-stream",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "no-store"
+        });
+        res.end(data);
+      });
+      return;
+    }
+  }
+
   // Admin Login with JWT issuance and Brute-Force lockout protection
   if (requestPath === "/api/admin/login" && req.method === "POST") {
     const clientIp = getClientIp(req);
-    const rateCheck = checkRateLimit(clientIp);
-    if (!rateCheck.allowed) {
-      return sendJson(429, { error: rateCheck.error });
-    }
 
     try {
-      const { username, password } = await parseJsonBody(req);
+      const { username: rawUsername, password } = await parseJsonBody(req);
+      const username = String(rawUsername || "").trim();
+      const rateCheck = await checkRateLimit(clientIp, username);
+      if (!rateCheck.allowed) {
+        return sendJson(429, { error: rateCheck.error });
+      }
+
       if (!username || !password) {
         return sendJson(400, { error: "Username and password required" });
       }
@@ -262,23 +442,25 @@ const server = http.createServer(async (req, res) => {
       let adminId = "admin-root";
       let email = "admin@lela.chat";
 
-      if (dbAdmin) {
+      if (dbAdmin && dbAdmin.is_active !== false) {
         adminId = dbAdmin.id;
         userRole = dbAdmin.role || "admin";
         email = dbAdmin.email || `${username}@lela.chat`;
 
         if (dbAdmin.password_hash) {
           isValidUser = bcrypt.compareSync(password, dbAdmin.password_hash);
-        } else if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-          isValidUser = true;
+        } else if (username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+          isValidUser = bcrypt.compareSync(password, ENV_ADMIN_PASSWORD_HASH);
         }
-      } else if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-        isValidUser = true;
+      } else if (!dbAdmin && username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+        isValidUser = bcrypt.compareSync(password, ENV_ADMIN_PASSWORD_HASH);
         userRole = "superadmin";
       }
 
       if (isValidUser) {
-        resetLoginAttempts(clientIp);
+        await resetLoginAttempts(clientIp, username);
+
+        const sessionVersion = await redis.getAdminSessionVersion(adminId);
 
         // Sign cryptographically verified JWT token
         const token = jwt.sign(
@@ -287,10 +469,16 @@ const server = http.createServer(async (req, res) => {
             username,
             email,
             role: userRole,
-            permissions: ROLE_PERMISSIONS[userRole] || []
+            permissions: ROLE_PERMISSIONS[userRole] || [],
+            sv: sessionVersion
           },
           JWT_SECRET,
-          { expiresIn: JWT_EXPIRY }
+          {
+            expiresIn: JWT_EXPIRY,
+            algorithm: "HS256",
+            issuer: JWT_ISSUER,
+            audience: JWT_ISSUER
+          }
         );
 
         await supabase.logAction("ADMIN_LOGIN", { username, role: userRole, ip: clientIp }, adminId, clientIp);
@@ -308,7 +496,7 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
-      recordFailedLogin(clientIp);
+      await recordFailedLogin(clientIp, username);
       return sendJson(401, { error: "Invalid username or password credentials" });
     } catch (e) {
       return sendJson(400, { error: e.message || "Login request error" });
@@ -317,9 +505,10 @@ const server = http.createServer(async (req, res) => {
 
   // Admin Logout (Invalidates JWT Session)
   if (requestPath === "/api/admin/logout" && req.method === "POST") {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (admin && admin.token) {
       tokenBlacklist.add(admin.token);
+      await redis.revokeAdminToken(admin.token, admin.exp);
       await supabase.logAction("ADMIN_LOGOUT", { username: admin.username }, admin.id, getClientIp(req));
     }
     return sendJson(200, { success: true, message: "Logged out successfully" });
@@ -327,7 +516,7 @@ const server = http.createServer(async (req, res) => {
 
   // Admin Heartbeat for session liveness
   if (requestPath === "/api/admin/heartbeat" && req.method === "POST") {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (!admin) return sendJson(401, { error: "Session expired" });
     return sendJson(200, { status: "active", user: admin });
   }
@@ -337,7 +526,7 @@ const server = http.createServer(async (req, res) => {
   // --------------------------------------------------
 
   if (requestPath.startsWith("/api/admin/")) {
-    const admin = verifyAdminToken(req);
+    const admin = await verifyAdminToken(req);
     if (!admin) {
       return sendJson(401, { error: "Unauthorized. Valid JWT token required." });
     }
@@ -525,107 +714,51 @@ const server = http.createServer(async (req, res) => {
       return sendJson(200, { ads: adsList, settings });
     }
 
-    // POST /api/admin/ads - Create New Ad (Handles Multipart or JSON)
+    // POST /api/admin/ads/upload-url - Prepare direct-to-Supabase upload
+    if (requestPath === "/api/admin/ads/upload-url" && req.method === "POST") {
+      if (!hasPermission(admin.role, "ads:write")) {
+        return sendJson(403, { error: "Forbidden. Insufficient permissions to upload ads." });
+      }
+      try {
+        const body = await parseJsonBody(req);
+        const result = await supabase.createSignedAdUpload(
+          String(body.originalName || ""),
+          String(body.mimeType || ""),
+          Number(body.size || 0)
+        );
+        if (!result) return sendJson(503, { error: "Supabase Storage is not configured or the file type is not allowed." });
+        return sendJson(200, result);
+      } catch (e) {
+        return sendJson(400, { error: e.message || "Could not prepare upload" });
+      }
+    }
+
+    // POST /api/admin/ads - Create ad using a media URL already stored in Supabase
     if (requestPath === "/api/admin/ads" && req.method === "POST") {
       if (!hasPermission(admin.role, "ads:write")) {
         return sendJson(403, { error: "Forbidden. Insufficient permissions to create ads." });
       }
+      try {
+        const body = await parseJsonBody(req);
+        const title = String(body.title || "Sponsored Announcement").trim().slice(0, 120) || "Sponsored Announcement";
+        const bodyText = String(body.body || "").trim().slice(0, 1000);
+        const cta_text = String(body.cta_text || "Learn more ↗").trim().slice(0, 30) || "Learn more ↗";
+        const device_target = ["all", "mobile", "desktop"].includes(body.device_target) ? body.device_target : "all";
+        const link_url = sanitizeUrl(String(body.link_url || ""));
+        const placement = ["stranger-overlay", "below-video", "corner"].includes(body.placement) ? body.placement : "stranger-overlay";
+        const rotation_seconds = Math.min(300, Math.max(3, parseInt(body.rotation_seconds) || 12));
+        const priority = Math.min(100, Math.max(1, parseInt(body.priority) || 1));
+        const active = body.active !== false;
+        const mediaUrl = sanitizeUrl(String(body.media_url || ""));
+        const mediaType = body.media_type === "video" ? "video" : "image";
+        if (!mediaUrl || !/^https:\/\//i.test(mediaUrl)) return sendJson(400, { error: "A valid Supabase media URL is required." });
 
-      const form = new formidable.IncomingForm({
-        uploadDir: uploadsDir,
-        keepExtensions: true,
-        maxFileSize: 45 * 1024 * 1024 // 45MB temporary upload cap for Supabase Storage
-      });
-
-      form.parse(req, async (err, fields, files) => {
-        if (err) {
-          console.error("Ad upload error:", err);
-          return sendJson(400, { error: "Upload failed: " + err.message });
-        }
-
-        const getVal = (v) => Array.isArray(v) ? v[0] : v;
-
-        const title = (getVal(fields.title) || "").trim() || "Sponsored Announcement";
-        const bodyText = (getVal(fields.body) || "").trim();
-        const cta_text = (getVal(fields.cta_text) || "").trim().slice(0, 30) || "Learn more ↗";
-        const device_target = getVal(fields.device_target) || "all";
-        const link_url = sanitizeUrl(getVal(fields.link_url));
-        const placement = getVal(fields.placement) || "stranger-overlay";
-        const rotation_seconds = parseInt(getVal(fields.rotation_seconds)) || 12;
-        const priority = parseInt(getVal(fields.priority)) || 1;
-        const active = getVal(fields.active) === "true" || getVal(fields.active) === true;
-
-        let mediaUrl = sanitizeUrl(getVal(fields.media_url));
-        let mediaType = "image";
-
-        // Validate uploaded file if present
-        if (files.media && files.media.length > 0) {
-          const file = files.media[0];
-          const ext = path.extname(file.originalFilename || file.filepath).toLowerCase();
-          const mime = file.mimetype;
-
-          // Strict extension & mime validation patch
-          if (!ALLOWED_UPLOAD_EXTS.has(ext) || !ALLOWED_UPLOAD_MIMES.has(mime)) {
-            // Delete unsafe file immediately
-            try { fs.unlinkSync(file.filepath); } catch (e) {}
-            return sendJson(400, { error: `Invalid file type (${mime}). Only images (PNG, JPG, WEBP, GIF) and videos (MP4, WEBM) are permitted.` });
-          }
-
-          // Generate randomized secure filename to prevent path traversal & overwrites
-          const safeFilename = "ad_" + crypto.randomBytes(16).toString("hex") + ext;
-          try {
-            const remoteUrl = await supabase.uploadAdMedia(
-              file.filepath,
-              file.originalFilename || safeFilename,
-              mime
-            );
-
-            if (remoteUrl) {
-              mediaUrl = remoteUrl;
-              try { fs.unlinkSync(file.filepath); } catch (_) {}
-            } else {
-              // Never persist large/video media on Railway.
-              if (mime.startsWith("video/") || Number(file.size || 0) > 8 * 1024 * 1024) {
-                try { fs.unlinkSync(file.filepath); } catch (_) {}
-                return sendJson(503, { error: "Large/video ad uploads require Supabase Storage to be configured." });
-              }
-              const targetPath = path.join(uploadsDir, safeFilename);
-              fs.renameSync(file.filepath, targetPath);
-              mediaUrl = `/uploads/${safeFilename}`;
-            }
-            mediaType = mime.startsWith("video/") ? "video" : "image";
-          } catch (moveErr) {
-            console.error("Error storing uploaded media:", moveErr);
-            try { fs.unlinkSync(file.filepath); } catch (_) {}
-            return sendJson(500, { error: "Could not store uploaded media" });
-          }
-        } else if (mediaUrl) {
-          mediaType = mediaUrl.match(/\.(mp4|webm|ogg)$/i) ? "video" : "image";
-        }
-
-        if (!mediaUrl) {
-          return sendJson(400, { error: "Media file or valid URL is required" });
-        }
-
-        const newAd = await supabase.addAd({
-          title,
-          body: bodyText,
-          cta_text,
-          device_target,
-          media_url: mediaUrl,
-          media_type: mediaType,
-          link_url,
-          placement,
-          rotation_seconds,
-          priority,
-          active,
-          created_by: admin.username
-        });
-
+        const newAd = await supabase.addAd({ title, body: bodyText, cta_text, device_target, media_url: mediaUrl, media_type: mediaType, link_url, placement, rotation_seconds, priority, active, created_by: admin.username });
         await supabase.logAction("AD_CREATE", { id: newAd.id, title, mediaUrl }, admin.id, getClientIp(req));
         return sendJson(201, { success: true, ad: newAd });
-      });
-      return;
+      } catch (e) {
+        return sendJson(400, { error: e.message || "Could not create ad" });
+      }
     }
 
     // PUT /api/admin/ads/:id/status - Toggle Ad Status
@@ -720,7 +853,6 @@ const server = http.createServer(async (req, res) => {
       }
       const adId = adDeleteMatch[1];
       const ad = await supabase.getAdById(adId);
-      // Per specification: Media files in uploads directory must be preserved and never deleted
       await supabase.deleteAd(adId);
       await supabase.logAction("AD_DELETE", { adId, title: ad.title }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: "Ad deleted" });
@@ -873,7 +1005,7 @@ const server = http.createServer(async (req, res) => {
       if (!message) return sendJson(400, { error: "Message cannot be empty" });
 
       const lockout = !!body.lockout;
-      const title = (body.title || "").trim() || (lockout ? "Website is in Update" : "System Announcement");
+      const title = (body.title || "").trim() || (lockout ? "Website Maintenance & Update" : "System Announcement");
 
       activeAnnouncement = {
         id: "ann_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6),
@@ -929,10 +1061,9 @@ const server = http.createServer(async (req, res) => {
       if (!hasPermission(admin.role, "broadcast:send")) {
         return sendJson(403, { error: "Forbidden. Insufficient permissions." });
       }
-      
       const targetId = annDeleteMatch ? annDeleteMatch[1] : (activeAnnouncement ? activeAnnouncement.id : null);
-      if (!activeAnnouncement) {
-        return sendJson(200, { success: true, message: "No active announcement to clear." });
+      if (!activeAnnouncement || (targetId !== "active" && targetId !== "current" && activeAnnouncement.id !== targetId)) {
+        return sendJson(404, { error: "No active announcement matching that ID" });
       }
 
       const cleared = activeAnnouncement;
@@ -981,7 +1112,10 @@ const server = http.createServer(async (req, res) => {
       if (!username || !password) {
         return sendJson(400, { error: "Username and password required" });
       }
-      const salt = bcrypt.genSaltSync(10);
+      if (password.length < 12 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^A-Za-z0-9]/.test(password)) {
+        return sendJson(400, { error: "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
+      }
+      const salt = bcrypt.genSaltSync(12);
       const hash = bcrypt.hashSync(password, salt);
 
       const created = await supabase.createAdminAccount({
@@ -1008,6 +1142,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const updated = await supabase.updateAdminRole(targetId, role);
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.logAction("ROLE_UPDATED", { targetId, newRole: role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, admin: updated });
     }
@@ -1018,8 +1153,8 @@ const server = http.createServer(async (req, res) => {
       if (!currentPassword || !newPassword) {
         return sendJson(400, { error: "Current password and new password are required" });
       }
-      if (newPassword.length < 6) {
-        return sendJson(400, { error: "New password must be at least 6 characters" });
+      if (newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+        return sendJson(400, { error: "New password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
       }
 
       // Fetch user from DB/store
@@ -1027,17 +1162,19 @@ const server = http.createServer(async (req, res) => {
       let isMatch = false;
       if (user && user.password_hash) {
         isMatch = bcrypt.compareSync(currentPassword, user.password_hash);
-      } else if (admin.username === ADMIN_USERNAME && currentPassword === ADMIN_PASSWORD) {
-        isMatch = true;
+      } else if (admin.username.toLowerCase() === ADMIN_USERNAME.toLowerCase() && ENV_ADMIN_PASSWORD_HASH) {
+        isMatch = bcrypt.compareSync(currentPassword, ENV_ADMIN_PASSWORD_HASH);
       }
 
       if (!isMatch) {
         return sendJson(401, { error: "Current password is incorrect" });
       }
 
-      const salt = bcrypt.genSaltSync(10);
+      const salt = bcrypt.genSaltSync(12);
       const newHash = bcrypt.hashSync(newPassword, salt);
       const updatedUser = await supabase.updateAdminPassword(admin.id, newHash);
+      await redis.bumpAdminSessionVersion(admin.id);
+      await redis.revokeAdminToken(admin.token, admin.exp);
       await supabase.logAction("PASSWORD_CHANGED", { username: admin.username, role: admin.role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: "Password updated successfully" });
     }
@@ -1073,6 +1210,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.deleteAdminAccount(targetId);
       await supabase.logAction("ADMIN_DELETED", { targetId, username: targetUser.username, role: targetUser.role }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: `Account for ${targetUser.username} deleted successfully` });
@@ -1086,16 +1224,17 @@ const server = http.createServer(async (req, res) => {
       }
       const targetId = userPassMatch[1];
       const { newPassword } = await parseJsonBody(req);
-      if (!newPassword || newPassword.length < 6) {
-        return sendJson(400, { error: "Password must be at least 6 characters" });
+      if (!newPassword || newPassword.length < 12 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+        return sendJson(400, { error: "Password must be at least 12 characters and include uppercase, lowercase, number, and symbol." });
       }
       const targetUser = await supabase.getAdminById(targetId);
       if (!targetUser) {
         return sendJson(404, { error: "Account not found" });
       }
-      const salt = bcrypt.genSaltSync(10);
+      const salt = bcrypt.genSaltSync(12);
       const hash = bcrypt.hashSync(newPassword, salt);
       await supabase.updateAdminPassword(targetId, hash);
+      await redis.bumpAdminSessionVersion(targetId);
       await supabase.logAction("ADMIN_PASSWORD_RESET", { targetId, username: targetUser.username }, admin.id, getClientIp(req));
       return sendJson(200, { success: true, message: `Password reset for ${targetUser.username}` });
     }
@@ -1178,47 +1317,28 @@ const server = http.createServer(async (req, res) => {
     requestPath = "/index.html";
   }
 
+  // Clean route for the video chat app (landing page owns the root URL).
+  if (requestPath === "/app" || requestPath === "/app/") {
+    requestPath = "/app.html";
+  }
+
+  // Extensionless routes for the landing page's sibling documents.
+  const cleanDocumentRoutes = {
+    "/about": "/about.html",
+    "/contact": "/contact.html",
+    "/privacy": "/privacy.html",
+    "/terms": "/terms.html",
+    "/guidelines": "/guidelines.html"
+  };
+  if (cleanDocumentRoutes[requestPath]) {
+    requestPath = cleanDocumentRoutes[requestPath];
+  }
+
   try {
     requestPath = decodeURIComponent(requestPath);
   } catch (error) {
     res.writeHead(400);
     return res.end("Bad request");
-  }
-
-  // Serve uploaded ad creatives with safe path verification
-  if (requestPath.startsWith("/uploads/")) {
-    const safeBaseName = path.basename(requestPath);
-    const uploadFilePath = path.join(uploadsDir, safeBaseName);
-
-    // Verify file stays within uploadsDir
-    if (!uploadFilePath.startsWith(uploadsDir + path.sep) && uploadFilePath !== uploadsDir) {
-      res.writeHead(403);
-      return res.end("Forbidden");
-    }
-
-    fs.readFile(uploadFilePath, (err, data) => {
-      if (err) {
-        res.writeHead(404);
-        return res.end("Not found");
-      }
-      const ext = path.extname(uploadFilePath).toLowerCase();
-      const contentTypes = {
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-        ".avif": "image/avif",
-        ".mp4": "video/mp4",
-        ".webm": "video/webm"
-      };
-      res.writeHead(200, {
-        "Content-Type": contentTypes[ext] || "application/octet-stream",
-        "Cache-Control": "public, max-age=86400"
-      });
-      res.end(data);
-    });
-    return;
   }
 
   // Standard static file serving from publicDir
@@ -1237,8 +1357,19 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(404);
         return res.end("Application entry point missing");
       }
-      res.writeHead(404);
-      return res.end("Not found");
+
+      // Serve the branded 404 page when it exists, plain text as fallback.
+      res.writeHead(404, { "Content-Type": "text/html; charset=utf-8" });
+      fs.readFile(path.join(publicDir, "404.html"), (notFoundError, notFoundData) => {
+        if (notFoundError) return res.end("Not found");
+        res.end(notFoundData);
+      });
+      return;
+    }
+
+    if (requestPath === "/contact.html") {
+      const phoneValue = CONTACT_PHONE || "Phone number not configured";
+      data = Buffer.from(data.toString("utf8").replace(/__LELA_CONTACT_PHONE__/g, phoneValue), "utf8");
     }
 
     const extension = path.extname(filePath).toLowerCase();
@@ -1263,18 +1394,86 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+// Harden HTTP connection handling against slow clients.
+server.requestTimeout = 30_000;
+server.headersTimeout = 15_000;
+server.keepAliveTimeout = 5_000;
+
 // ==================================================
 // WEBSOCKET SIGNALING SERVER (WEBRTC)
 // ==================================================
 
 const wss = new WebSocket.Server({
   server,
-  maxPayload: 64 * 1024 // 64KB max payload (DoS protection)
+  maxPayload: 64 * 1024, // 64KB max payload (DoS protection)
+  perMessageDeflate: false
 });
+
+function isAllowedWebSocketOrigin(request) {
+  const origin = String(request.headers.origin || "").trim();
+  if (!origin) return true; // non-browser clients / native clients
+
+  const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  const protocol = forwardedProto || (request.socket.encrypted ? "https" : "http");
+  const host = String(request.headers["x-forwarded-host"] || request.headers.host || "").trim();
+  const sameOrigin = host ? `${protocol}://${host}` : "";
+
+  if (sameOrigin && origin === sameOrigin) return true;
+  if (ALLOWED_ORIGINS.has(origin)) return true;
+
+  try {
+    const originUrl = new URL(origin);
+    const hostWithoutPort = host.split(":")[0];
+    if (originUrl.hostname === hostWithoutPort || originUrl.host === host) return true;
+
+    // Always allow localhost & loopback addresses
+    if (
+      originUrl.hostname === "localhost" ||
+      originUrl.hostname === "127.0.0.1" ||
+      originUrl.hostname === "::1" ||
+      originUrl.hostname.endsWith(".localhost")
+    ) return true;
+
+    // Support domain env vars (APP_URL, PUBLIC_URL, SERVER_URL, DOMAIN, etc.)
+    const envUrls = [
+      process.env.APP_URL,
+      process.env.PUBLIC_URL,
+      process.env.SERVER_URL,
+      process.env.RENDER_EXTERNAL_URL,
+      process.env.DOMAIN
+    ].filter(Boolean);
+
+    for (const envUrl of envUrls) {
+      try {
+        const u = new URL(envUrl.startsWith("http") ? envUrl : `https://${envUrl}`);
+        if (u.hostname === originUrl.hostname) return true;
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // Fail closed in production when the origin is not same-origin or explicitly allowlisted.
+  if (ALLOWED_ORIGINS.size === 0) return !IS_PRODUCTION;
+  return false;
+}
 
 let nextClientId = 1;
 const waitingClients = [];
 const connectedClients = new Set();
+const reportThrottle = new Map();
+const REPORT_LIMIT = 5;
+const REPORT_WINDOW_MS = 10 * 60 * 1000;
+
+function canSubmitReport(ip) {
+  const now = Date.now();
+  const current = reportThrottle.get(ip);
+  if (!current || now - current.windowStart > REPORT_WINDOW_MS) {
+    reportThrottle.set(ip, { windowStart: now, count: 1 });
+    return true;
+  }
+  if (current.count >= REPORT_LIMIT) return false;
+  current.count += 1;
+  return true;
+}
 
 function broadcastOnlineCount() {
   const uniqueIps = new Set();
@@ -1348,6 +1547,11 @@ function tryMatchUsers() {
 }
 
 wss.on("connection", async (socket, request) => {
+  if (!isAllowedWebSocketOrigin(request)) {
+    try { socket.close(1008, "Origin not allowed"); } catch (_) {}
+    return;
+  }
+
   const clientIp = getClientIp(request);
 
   // Rapid Banned IP verification check
@@ -1399,10 +1603,16 @@ wss.on("connection", async (socket, request) => {
     }
 
     if (message.type === "ready") {
-      if (socket.ready) return;
+      // "ready" is intentionally idempotent. A client may already be marked
+      // ready when its previous peer disconnects, but it still needs to be
+      // placed back into the waiting queue for the next match.
       socket.ready = true;
-      putInWaitingQueue(socket);
-      tryMatchUsers();
+
+      if (!socket.peer) {
+        putInWaitingQueue(socket);
+        tryMatchUsers();
+      }
+
       return;
     }
 
@@ -1414,8 +1624,18 @@ wss.on("connection", async (socket, request) => {
 
       if (oldPeer && oldPeer.readyState === WebSocket.OPEN) {
         oldPeer.peer = null;
+
+        // The remaining person is still actively using the service, so
+        // immediately place them back into the matchmaking queue. The client
+        // will also send "ready" after handling peer-disconnected; the ready
+        // handler above is idempotent, so either path is safe.
+        oldPeer.ready = true;
+        putInWaitingQueue(oldPeer);
+
         send(oldPeer, { type: "peer-disconnected" });
       }
+
+      tryMatchUsers();
       return;
     }
 
@@ -1443,6 +1663,11 @@ wss.on("connection", async (socket, request) => {
     }
 
     if (message.type === "report") {
+      if (!canSubmitReport(socket.ip)) {
+        send(socket, { type: "report-rate-limited", message: "Too many reports. Please try again later." });
+        return;
+      }
+
       const reportedPeer = socket.peer;
       const reportData = {
         reporterId: socket.id,
@@ -1510,8 +1735,9 @@ server.listen(PORT, HOST, () => {
   console.log("==================================================");
   console.log(`Port: ${PORT} | Host: ${HOST}`);
   console.log(`User Dashboard:  http://localhost:${PORT}/`);
-  console.log(`Admin Panel:     http://localhost:${PORT}/admin`);
-  console.log(`Default Super:   ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
+  console.log("Public /admin:   404 Not Found");
+  console.log(`Private Admin:   ${ADMIN_ROUTE ? "configured" : "DISABLED (set ADMIN_PATH)"}`);
+  console.log("Admin credentials: loaded from environment / database");
   console.log("==================================================");
   console.log("");
 });
